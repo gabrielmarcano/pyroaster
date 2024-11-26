@@ -3,4 +3,7 @@
 .venv
 env/
 venv/
+
+# Configurations
+webrepl_cfg.py
 config.py
