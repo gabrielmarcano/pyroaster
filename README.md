@@ -54,4 +54,4 @@ https://github.com/dhylands/python_lcd
 
 ### Web Server
 
-https://github.com/troublegum/micropyserver
+I made my own module that supports sse based on https://github.com/troublegum/micropyserver and this fork https://github.com/ferdinandog/micropyserver/tree/new-utils
