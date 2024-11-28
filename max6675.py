@@ -7,6 +7,7 @@ class MAX6675:
     def __init__(self, sck, cs, so):
         """
         Creates new object for controlling MAX6675
+
         :param sck: SCK (clock) pin, must be configured as Pin.OUT
         :param cs: CS (select) pin, must be configured as Pin.OUT
         :param so: SO (data) pin, must be configured as Pin.IN
@@ -43,15 +44,22 @@ class MAX6675:
     def ready(self):
         """
         Signals if measurement is finished.
+
         :return: True if measurement is ready for reading.
+        :rtype: boolean
         """
-        return time.ticks_ms() - self._last_measurement_start > MAX6675.MEASUREMENT_PERIOD_MS
+        return (
+            time.ticks_ms() - self._last_measurement_start
+            > MAX6675.MEASUREMENT_PERIOD_MS
+        )
 
     def error(self):
         """
         Returns error bit of last reading. If this bit is set (=1), there's problem with the
         thermocouple - it can be damaged or loosely connected
+
         :return: Error bit value
+        :rtype: int
         """
         return self._error
 
@@ -60,7 +68,9 @@ class MAX6675:
         Reads last measurement and starts a new one. If new measurement is not ready yet, returns last value.
         Note: The last measurement can be quite old (e.g. since last call to `read`).
         To refresh measurement, call `refresh` and wait for `ready` to become True before reading.
+
         :return: Measured temperature
+        :rtype: float
         """
         # Check if new reading is available
         if self.ready():
