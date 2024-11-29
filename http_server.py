@@ -23,7 +23,7 @@ class HttpServer:
         """Initialize the server with host and port."""
         self.host = host
         self.port = port
-        self.routes = {}
+        self.routes: dict[str, list[dict[str, function | str]] | None] = {}
         self.socket = None
         self.connection = None
         self.logger = logger.SimpleLogger()
@@ -62,14 +62,14 @@ class HttpServer:
             self.socket.close()
         self.logger.info("Server stopped")
 
-    def add_route(self, path, handler, methods=["GET"]):
+    def add_route(self, path: str, handler: function, methods: list[str] = ["GET"]):
         """Add a route to the server with one or more methods."""
         for method in methods:
             if method not in self.routes:
                 self.routes[method] = []
             self.routes[method].append({"path": path, "handler": handler})
 
-    def find_route_for_path(self, path):
+    def find_route_for_path(self, path: str):
         """Find a route matching the path (ignoring method)."""
         try:
             resources = path.split("/")[1:]
@@ -84,18 +84,19 @@ class HttpServer:
         return None
 
     def get_request(self, buffer_length=4096):
-        """Retrieve the request body."""
+        """Retrieve the request."""
         return self.connection.recv(buffer_length).decode("utf-8")
 
     def get_request_body(self, request: str):
-        """Retrieve the request payload."""
+        """Extract the body from the request."""
         body_pos = request.find("\r\n\r\n")
         if body_pos == -1:
-            return {}
+            return ""
         body_pos += 4
         return request[body_pos:]
 
-    def parse_request(self, request):
+
+    def parse_request(self, request: str):
         """Parse the request and extract the method and path."""
         lines = request.split("\r\n")
         try:
@@ -106,36 +107,31 @@ class HttpServer:
             return None, None
         return method, path
 
-    def handle_request(self, request):
+    def handle_request(self, request: str):
         """Handle incoming requests and route them."""
         method, path = self.parse_request(request)
         if method is None or path is None:
-            self.handle_bad_request(request)  # 400 for malformed requests
+            self.handle_bad_request(request)
             return
 
-        # Find a route for the path (ignoring method for now)
         route = self.find_route_for_path(path)
 
-        # If no route is found for the path, send 404 Not Found
         if route is None:
             self.handle_route_not_found(request)
 
         else:
-            # If the route is found, check if the method is allowed
             if route in self.routes.get(method):
-                route["handler"](request)  # Call the handler if the method is allowed
+                route["handler"](request)
             else:
-                self.handle_method_not_allowed(
-                    method, request
-                )  # Handle method not allowed
+                self.handle_method_not_allowed(method, request)
 
-    def format_exception(self, exc):
+    def format_exception(self, exc: Exception):
         """Format exception for logging."""
         output = io.StringIO()
         sys.print_exception(exc, output)
         return output.getvalue()
 
-    def handle_error(self, error):
+    def handle_error(self, error: Exception):
         """Handle 500 internal server errors."""
         error_message = (
             str(error)
@@ -145,22 +141,22 @@ class HttpServer:
         self.send_response(f"Internal Server Error: {error_message}", http_code=500)
         self.logger.error(error_message)
 
-    def handle_bad_request(self, request):
+    def handle_bad_request(self, request: str):
         """Handle a 400 bad request error."""
         self.send_response("Bad Request", http_code=400)
         self.logger.warning(f"Bad request for {request}")
 
-    def handle_route_not_found(self, request):
+    def handle_route_not_found(self, request: str):
         """Handle a 404 route not found error."""
         self.send_response("Not found", http_code=404)
         self.logger.warning(f"Route not found for {request}")
 
-    def handle_method_not_allowed(self, method, request):
+    def handle_method_not_allowed(self, method: str, request: str):
         """Handle a 405 method not allowed error."""
         self.send_response(f"Method {method} Not Allowed", http_code=405)
         self.logger.warning(f"Method {method} Not Allowed for {request}")
 
-    def handle_sse(self, request):
+    def handle_sse(self, request: str):
         """SSE Handler"""
         headers = [
             "Cache-Control: no-cache",
@@ -172,16 +168,20 @@ class HttpServer:
         self.send_response(
             "", http_code=200, content_type="text/event-stream", extend_headers=headers
         )
-        self.sse_clients.append(self.connection)  # Add the client to the list
+        self.sse_clients.append(self.connection)
         self.logger.info(f"New SSE client connected: {self.connection}")
 
-    def send(self, data):
+    def send(self, data: str):
         """Send data to the client."""
         if self.connection:
             self.connection.sendall(data.encode())
 
     def send_response(
-        self, body, http_code=200, content_type="text/plain", extend_headers=None
+        self,
+        body: str,
+        http_code=200,
+        content_type="text/plain",
+        extend_headers: list[str] | None = None,
     ):
         """Send an HTTP response."""
         headers = [
@@ -189,18 +189,15 @@ class HttpServer:
             f"Content-Type: {content_type}",
         ]
 
-        # Add any additional headers if provided
         if extend_headers:
             headers.extend(extend_headers)
 
         self.send("\r\n".join(headers) + "\r\n\r\n" + body)
 
-    def send_sse(self, data, event=None):
+    def send_sse(self, data: str | dict | list, event: str | None = None):
         """Send SSE data to all connected clients"""
-        # Increment event ID for each message
         self.event_id += 1
 
-        # Convert data to JSON if it's a dictionary or list
         if isinstance(data, (dict, list)):
             data_str = json.dumps(data)
         else:
@@ -218,7 +215,6 @@ class HttpServer:
                 self.logger.error(f"Error sending to client {client}: {e}")
                 disconnected_clients.append(client)
 
-        # Remove disconnected clients
         for client in disconnected_clients:
             self.sse_clients.remove(client)
             self.logger.info(f"Client disconnected: {client}")
