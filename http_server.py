@@ -13,6 +13,7 @@ HTTP_CODES = {
     403: "Forbidden",
     404: "Not Found",
     405: "Method Not Allowed",
+    406: "Not Acceptable",
     500: "Internal Server Error",
     # Add more as needed
 }
@@ -95,6 +96,15 @@ class HttpServer:
         body_pos += 4
         return request[body_pos:]
 
+    def get_request_headers(self, request: str):
+        """Extract the headers from the request."""
+        headers = {}
+        lines = request.split("\r\n")
+        for line in lines[1:]:
+            if ":" in line:
+                key, value = line.split(": ", 1)
+                headers[key] = value
+        return headers
 
     def parse_request(self, request: str):
         """Parse the request and extract the method and path."""
@@ -158,6 +168,12 @@ class HttpServer:
 
     def handle_sse(self, request: str):
         """SSE Handler"""
+
+        request_headers = self.get_request_headers(request)
+        if request_headers.get("Accept") != "text/event-stream":
+            self.send_response("Not Acceptable", http_code=406)
+            return
+
         headers = [
             "Cache-Control: no-cache",
             "Access-Control-Allow-Origin: *",
