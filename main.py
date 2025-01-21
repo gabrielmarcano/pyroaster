@@ -10,6 +10,7 @@ import utils
 
 from http_server import HttpServer
 from logger import SimpleLogger
+from timer import TimerController
 
 logger = SimpleLogger()
 
@@ -74,6 +75,13 @@ try:
 except Exception as e:
     logger.error(f"Failed to play melody: {e}")
 
+try:
+    timer = TimerController(TIME_A, TIME_B, TIME_C)
+except Exception as e:
+    logger.error(f"Failed to initialize the timer: {e}")
+    logger.info(f"Rebooting...")
+    machine.reset()
+
 
 def read_sensor_data():
     """
@@ -92,7 +100,16 @@ def read_sensor_data():
 
 
 def get_time_values():
-    pass
+    """
+    Get time values from the timer and return as a dictionary
+    """
+    try:
+        total, current = timer.read_time_values()
+
+        return {"total": total, "current": current}
+    except Exception as e:
+        logger.error(f"Failed to read time data: {e}")
+        return None
 
 
 def get_motor_states():
@@ -100,11 +117,11 @@ def get_motor_states():
 
 
 def add_time():
-    pass
+    timer._current_time = timer._current_time + 1000
 
 
 def reduce_time():
-    pass
+    timer._current_time = timer._current_time - 1000
 
 
 def refresh_lcd_data():
@@ -135,6 +152,14 @@ def send_updates_to_server(server: HttpServer):
 
         time.sleep(1)
 
+
+# Attach interrupt handlers
+TIME_ADDER.irq(trigger=machine.Pin.IRQ_RISING, handler=add_time)
+TIME_REDUCER.irq(trigger=machine.Pin.IRQ_RISING, handler=reduce_time)
+
+# Add routes to the server to also control the timer by client
+server.add_route("/add_time", add_time, ["POST"])
+server.add_route("/reduce_time", reduce_time, ["POST"])
 
 # Start the update function in a new thread
 _thread.start_new_thread(send_updates_to_server, (server,))
