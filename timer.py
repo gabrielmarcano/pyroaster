@@ -47,19 +47,16 @@ class TimerController:
             self._current_time = self.cafe_time
 
         if self._current_time == self._total_time:
-            response = {
-                "total": self._total_time,
-                "current": self._current_time,
-            }  # only the first time
+            values = (self._total_time, self._current_time)  # only the first time
             self.timer.init(
                 period=1000, mode=Timer.PERIODIC, callback=self.decrease_current_time
             )
-            return response
+            return values
 
-        response = {"total": self._total_time, "current": self._current_time}
+        values = (self._total_time, self._current_time)
 
         if self._current_time == 0:
             self.timer.deinit()
             self._total_time = 0
 
-        return response
+        return values
