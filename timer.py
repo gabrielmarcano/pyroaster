@@ -4,26 +4,29 @@ from machine import Timer
 class TimerController:
     def __init__(self, time_a, time_b, time_c):
         """
-        Initialize the timer with no time values
+        Initialize the timer controller
         """
         self._time_a = time_a
         self._time_b = time_b
         self._time_c = time_c
 
-        self.mani_time = 20 * 60 * 1000
-        self.cacao_time = 33 * 60 * 1000
-        self.cafe_time = 12 * 60 * 1000
+        self.mani_time = 20 * 60
+        self.cacao_time = 33 * 60
+        self.cafe_time = 12 * 60
 
         self._total_time = 0
         self._current_time = 0
 
-        self.timer = Timer(0)
+        self._timers_count = 0
+        self._timer_is_active = False
+
+        self.timer = Timer(0)  # Hardware timer
 
     def decrease_current_time(self, t):
         """
-        Decrease the current time by 1000ms
+        Decrease the current time by 1s
         """
-        self._current_time = self._current_time - 1000
+        self._current_time -= 1
 
     def read_time_values(self):
         """
@@ -55,7 +58,7 @@ class TimerController:
 
         values = (self._total_time, self._current_time)
 
-        if self._current_time == 0:
+        if self._current_time <= 0:
             self.timer.deinit()
             self._total_time = 0
 
