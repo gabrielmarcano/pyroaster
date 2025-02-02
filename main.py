@@ -113,15 +113,26 @@ def get_time_values():
 
 
 def get_motor_states():
-    pass
+    """
+    Get the states of the motors and return as a dictionary
+    """
+    try:
+        motor1_state = MOTOR1_PIN.value()
+        motor2_state = MOTOR2_PIN.value()
+        motor3_state = MOTOR3_PIN.value()
+
+        return {"motor1": motor1_state, "motor2": motor2_state, "motor3": motor3_state}
+    except Exception as e:
+        logger.error(f"Failed to read motor states: {e}")
+        return None
 
 
 def add_time():
-    timer._current_time = timer._current_time + 1000
+    timer._current_time += 1
 
 
 def reduce_time():
-    timer._current_time = timer._current_time - 1000
+    timer._current_time -= 1
 
 
 def refresh_lcd_data():
