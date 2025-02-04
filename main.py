@@ -1,18 +1,21 @@
+import json
 import machine
-from machine_i2c_lcd import I2cLcd
-from max6675 import MAX6675
-from dht import DHT22
-import network
+
+# from machine_i2c_lcd import I2cLcd
+# import network
 import _thread
 import time
-import random
-import utils
+
+# import utils
 
 from http_server import HttpServer
 from logger import SimpleLogger
-from timer import TimerController
+from timer_controller import TimerController
+from motor_controller import MotorController
+from sensor_controller import SensorController
+from controller import Controller
 
-logger = SimpleLogger()
+# Pins
 
 MAX_SCK = machine.Pin(5, machine.Pin.OUT)
 MAX_CS = machine.Pin(23, machine.Pin.OUT)
@@ -20,15 +23,15 @@ MAX_SO = machine.Pin(19, machine.Pin.IN)
 
 DHT_PIN = machine.Pin(18)
 
-I2C_ADDR = 0x27
-I2C_NUM_ROWS = 2
-I2C_NUM_COLS = 16
-LCD_SDA = machine.Pin(21)
-LCD_SCL = machine.Pin(22)
+# I2C_ADDR = 0x27
+# I2C_NUM_ROWS = 2
+# I2C_NUM_COLS = 16
+# LCD_SDA = machine.Pin(21)
+# LCD_SCL = machine.Pin(22)
 
-MOTOR1_PIN = machine.Pin(25, machine.Pin.OUT)
-MOTOR2_PIN = machine.Pin(26, machine.Pin.OUT)
-MOTOR3_PIN = machine.Pin(27, machine.Pin.OUT)
+MOTOR1_PIN = machine.Pin(25, machine.Pin.OUT, value=0)
+MOTOR2_PIN = machine.Pin(26, machine.Pin.OUT, value=0)
+MOTOR3_PIN = machine.Pin(27, machine.Pin.OUT, value=0)
 
 BUZZER_PIN = machine.Pin(14, machine.Pin.OUT)
 
@@ -38,108 +41,127 @@ TIME_C = machine.Pin(35, machine.Pin.IN)
 TIME_ADDER = machine.Pin(12, machine.Pin.IN)
 TIME_REDUCER = machine.Pin(13, machine.Pin.IN)
 
-server = HttpServer()
-server.add_route("/events", server.handle_sse)
-server.add_route("/reset", lambda r: machine.reset(), ["POST"])
+logger = SimpleLogger()
 
 try:
-    max = MAX6675(MAX_SCK, MAX_CS, MAX_SO)
+    server = HttpServer()
+    server.add_route("/events", server.handle_sse)
+    server.add_route("/reset", lambda r: machine.reset(), ["POST"])
 except Exception as e:
-    logger.error(f"Failed to initialize the thermocouple with MAX6675: {e}")
+    logger.error(f"Failed to initialize the server:\n{e}\n")
+    logger.info(f"Rebooting...")
+    machine.reset()
+
+# try:
+#     i2c = machine.SoftI2C(sda=LCD_SDA, scl=LCD_SCL, freq=400000)
+#     lcd = I2cLcd(i2c, I2C_ADDR, I2C_NUM_ROWS, I2C_NUM_COLS)
+
+#     lcd.clear()
+#     lcd.putstr("IP:")  # By default, it will start at (0,0) if the display is empty
+#     lcd.move_to(0, 1)
+#     lcd.putstr(f"{network.WLAN(network.STA_IF).ipconfig("addr4")[0]}")
+#     time.sleep(5)
+# except Exception as e:
+#     print(f"Failed to initialize LCD:\n{e}\n")
+#     print(f"Rebooting...")
+#     machine.reset()
+
+# try:
+#     utils.play_melody(BUZZER_PIN)
+# except Exception as e:
+#     print(f"Failed to play melody:\n{e}\n")
+
+try:
+    timerc = TimerController()
+except Exception as e:
+    logger.error(f"Failed to initialize the timer controller:\n{e}\n")
     logger.info(f"Rebooting...")
     machine.reset()
 
 try:
-    dht = DHT22(DHT_PIN)
+    motorc = MotorController(MOTOR1_PIN, MOTOR2_PIN, MOTOR3_PIN)
 except Exception as e:
-    logger.error(f"Failed to initialize the DHT22: {e}")
+    logger.error(f"Failed to initialize motor controller:\n{e}\n")
     logger.info(f"Rebooting...")
     machine.reset()
 
 try:
-    i2c = machine.SoftI2C(sda=LCD_SDA, scl=LCD_SCL, freq=400000)
-    lcd = I2cLcd(i2c, I2C_ADDR, I2C_NUM_ROWS, I2C_NUM_COLS)
-
-    lcd.clear()
-    lcd.putstr("IP:")  # By default, it will start at (0,0) if the display is empty
-    lcd.move_to(0, 1)
-    lcd.putstr(f"{network.WLAN(network.STA_IF).ipconfig("addr4")[0]}")
-    time.sleep(5)
+    sensorc = SensorController(DHT_PIN, MAX_SCK, MAX_CS, MAX_SO)
 except Exception as e:
-    logger.error(f"Failed to initialize LCD: {e}")
+    logger.error(f"Failed to initialize the sensor controller:\n{e}\n")
     logger.info(f"Rebooting...")
     machine.reset()
 
 try:
-    utils.play_melody(BUZZER_PIN)
+    controller = Controller(sensorc, timerc, motorc)
 except Exception as e:
-    logger.error(f"Failed to play melody: {e}")
-
-try:
-    timer = TimerController(TIME_A, TIME_B, TIME_C)
-except Exception as e:
-    logger.error(f"Failed to initialize the timer: {e}")
+    logger.error(f"Failed to initialize the logic controller:\n{e}\n")
     logger.info(f"Rebooting...")
     machine.reset()
 
 
-def read_sensor_data():
-    """
-    Read sensor data and return as a dictionary
-    """
-    try:
-        # dht.measure()
-        # temperature = max.read()
-        # humidity = dht.measure().humidity()
-        temperature = random.randint(10, 40)
-        humidity = random.randint(30, 80)
-        return {"temperature": temperature, "humidity": humidity}
-    except Exception as e:
-        logger.error(f"Failed to read sensor data: {e}")
-        return None
+def handle_config(request):
+    print(request)
 
+    if "GET" in request:
+        response = json.dumps(controller.get_config())
+        server.send_response(response, 200, "application/json")
 
-def get_time_values():
-    """
-    Get time values from the timer and return as a dictionary
-    """
-    try:
-        total, current = timer.read_time_values()
+    if "PATCH" in request:
+        data = server.parse_json_body(request)
+        if data is not None:
+            response = json.dumps(
+                controller.set_config(
+                    data.get("mode"), data.get("starting_temperature"), data.get("time")
+                )
+            )
+            return server.send_response(response, 200, "application/json")
 
-        return {"total": total, "current": current}
-    except Exception as e:
-        logger.error(f"Failed to read time data: {e}")
-        return None
-
-
-def get_motor_states():
-    """
-    Get the states of the motors and return as a dictionary
-    """
-    try:
-        motor1_state = MOTOR1_PIN.value()
-        motor2_state = MOTOR2_PIN.value()
-        motor3_state = MOTOR3_PIN.value()
-
-        return {"motor1": motor1_state, "motor2": motor2_state, "motor3": motor3_state}
-    except Exception as e:
-        logger.error(f"Failed to read motor states: {e}")
-        return None
+        server.send_response("error", http_code=400)
 
 
 def add_time():
-    timer._current_time += 1
+    timerc.increase_current_time()
+
+
+def handle_add_time(r):
+    print(r)
+    add_time()
+    return server.send_response(timerc.__current_time)
 
 
 def reduce_time():
-    timer._current_time -= 1
+    timerc.decrease_current_time()
 
 
-def refresh_lcd_data():
-    lcd.clear()
-    lcd.putstr("foo")
-    lcd.move_to(0, 1)
-    lcd.putstr("bar")
+def handle_reduce_time(r):
+    print(r)
+    reduce_time()
+    return server.send_response(timerc.__current_time)
+
+
+def handle_controller(request):
+    data = server.parse_json_body(request)
+    if data is not None:
+        action = data.get("action")
+        if action == "activate":
+            controller.activate()
+            return server.send_response("Controller activated")
+        if action == "deactivate":
+            controller.deactivate()
+            return server.send_response("Controller deactivated")
+        if action == "stop":
+            controller.stop()
+            return server.send_response("Controller stopped")
+
+    return server.send_response("error", http_code=400)
+
+
+# def refresh_lcd_data():
+#     lcd.clear()
+#     lcd.putstr("foo")
+#     lcd.move_to(0, 1)
+#     lcd.putstr("bar")
 
 
 def send_updates_to_server(server: HttpServer):
@@ -147,19 +169,36 @@ def send_updates_to_server(server: HttpServer):
     Send sensor data to the server every second
     """
     while True:
-        sensor_data = read_sensor_data()
-        time_values = get_time_values()
-        motor_states = get_motor_states()
-        refresh_lcd_data()
+        sensor_data = sensorc.read_sensor_data()
+        time_values = timerc.get_time_values()
+        motor_states = motorc.read_motor_states()
+        # refresh_lcd_data()
+        controller.run()
+
+        sensor_json = {"temperature": sensor_data[0], "humidity": sensor_data[1]}
+        time_json = {"total_time": time_values[0], "current_time": time_values[1]}
+        motor_json = {
+            "motor_a": motor_states[0],
+            "motor_b": motor_states[1],
+            "motor_c": motor_states[2],
+        }
 
         if sensor_data is not None:
-            server.send_sse(sensor_data, "sensors")
+            server.send_sse(sensor_json, "sensors")
 
         if time_values is not None:
-            server.send_sse(time_values, "time")
+            server.send_sse(time_json, "time")
 
         if motor_states is not None:
-            server.send_sse(motor_states, "states")
+            server.send_sse(motor_json, "states")
+
+        controller_status = {
+            "active": controller.__is_active,
+            "mode": controller.__mode,
+            "time": controller.__time,
+            "starting_temperature": controller.__starting_temperature,
+        }
+        server.send_sse(controller_status, "controller")
 
         time.sleep(1)
 
@@ -169,8 +208,14 @@ TIME_ADDER.irq(trigger=machine.Pin.IRQ_RISING, handler=add_time)
 TIME_REDUCER.irq(trigger=machine.Pin.IRQ_RISING, handler=reduce_time)
 
 # Add routes to the server to also control the timer by client
-server.add_route("/add_time", add_time, ["POST"])
-server.add_route("/reduce_time", reduce_time, ["POST"])
+server.add_route("/add_time", handle_add_time, ["POST"])
+server.add_route("/reduce_time", handle_reduce_time, ["POST"])
+
+
+server.add_route("/config", handle_config, ["GET", "PATCH"])
+
+server.add_route("/controller", handle_controller, ["POST"])
+
 
 # Start the update function in a new thread
 _thread.start_new_thread(send_updates_to_server, (server,))
