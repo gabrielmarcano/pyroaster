@@ -32,16 +32,14 @@ class Controller:
                 self.__timer.set_timer_values(self.__time)
                 self.__timer.start_timer()
 
-        if self.__timer.__timer_counter > 0:
-            self.__motor.stop_motor_a()
-            self.__motor.start_motor_b()
-            self.__motor.start_motor_c()
-
-        if self.__timer.__current_time <= 0:
-            self.__timer.stop_timer()
-            self.__motor.start_motor_b()
-            self.__motor.start_motor_c()
-            self.deactivate()
+        if (
+            self.__timer.__timer_counter > 0
+        ):  # Avoid running this block of code when the esp32 boots for the first time
+            if self.__timer.__current_time <= 0:
+                self.__timer.stop_timer()
+                self.__motor.start_motor_b()
+                self.__motor.start_motor_c()
+                self.deactivate()
 
     def stop(self):
         self.__timer.stop_timer()
