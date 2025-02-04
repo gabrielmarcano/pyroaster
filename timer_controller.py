@@ -14,6 +14,12 @@ class TimerController:
 
         self.__htimer = Timer(0)  # Hardware timer
 
+    def increase_current_time(self, t):
+        """
+        Increase the current time by 1s
+        """
+        self.__current_time += 1
+
     def decrease_current_time(self, t):
         """
         Decrease the current time by 1s
@@ -35,6 +41,7 @@ class TimerController:
             period=1000, mode=Timer.PERIODIC, callback=self.decrease_current_time
         )
         self.__timer_is_active = True
+        self.__timer_counter += 1
 
     def stop_timer(self):
         """
