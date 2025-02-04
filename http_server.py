@@ -117,6 +117,14 @@ class HttpServer:
             return None, None
         return method, path
 
+    def parse_json_body(self, request: str):
+        """Parse the JSON body of the request."""
+        body = self.get_request_body(request)
+        try:
+            return json.loads(body)
+        except json.JSONDecodeError:
+            return None
+
     def handle_request(self, request: str):
         """Handle incoming requests and route them."""
         method, path = self.parse_request(request)
@@ -178,7 +186,7 @@ class HttpServer:
             "Cache-Control: no-cache",
             "Access-Control-Allow-Origin: *",
             "Connection: keep-alive",
-            "Retry-After: 5",  # Optional: to suggest reconnection delay
+            # "Retry-After: 5",  # Optional: to suggest reconnection delay
         ]
 
         self.send_response(
@@ -204,6 +212,10 @@ class HttpServer:
             f"HTTP/1.1 {http_code} {HTTP_CODES.get(http_code)}",
             f"Content-Type: {content_type}",
         ]
+
+        if content_type != "text/event-stream":
+            headers.append(f"Content-Length: {len(body)}")
+            headers.append("Connection: close")
 
         if extend_headers:
             headers.extend(extend_headers)
