@@ -10,7 +10,6 @@
 <!-- [![GitHub release](https://img.shields.io/github/v/release/gabrielmarcano/esp32-roaster?filter=*alpha&logo=github)](https://github.com/gabrielmarcano/esp32-roaster/releases) -->
 
 [![python](https://img.shields.io/badge/Python-3.13-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
-
 [![micropython](https://img.shields.io/badge/built%20for-MicroPython-3776AB?logo=micropython)](https://micropython.org/)
 
 </div>
@@ -18,10 +17,11 @@
 ## Contents
 
 - [Summary](#summary)
-- [Project structure](#project-structure)
-- [Hardware](#hardware)
-- [Software](#software)
-- [Wiring](#wiring)
+- [Project structure](#project-structure) (WIP)
+- [Hardware](#hardware) (WIP)
+- [Software](#software) (WIP)
+- [Wiring](#wiring) (WIP)
+- [Resources](#resources)
 
 ## Summary
 
