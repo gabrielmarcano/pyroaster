@@ -101,8 +101,6 @@ except Exception as e:
 
 
 def handle_config(request):
-    print(request)
-
     if "GET" in request:
         response = json.dumps(controller.get_config())
         server.send_response(response, 200, "application/json")
