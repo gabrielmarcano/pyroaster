@@ -58,36 +58,25 @@ Controller deactivated
 Controller stopped
 ```
 
-### POST /add_time
+### POST /time
 
-Add 1 second to the timer controller.
-
-Payload:
-
-```json
-
-```
-
-Returns:
-
-```text
-Current time in seconds (number)
-```
-
-### POST /reduce_time
-
-Reduce 1 second to the timer controller.
+Add or reduce 1 second to the timer controller.
 
 Payload:
 
 ```json
-
+{
+  "action": "add" | "reduce"
+}
 ```
 
 Returns:
 
-```text
-Current time in seconds (number)
+```json
+{
+  "total_time": number,
+  "current_time": number
+}
 ```
 
 ### POST /reset

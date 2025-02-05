@@ -120,24 +120,21 @@ def handle_config(request):
         server.send_response("error", http_code=400)
 
 
-def add_time():
-    timerc.increase_current_time()
+def handle_time_change(request):
+    data = server.parse_json_body(request)
+    if data is not None:
+        action = data.get("action")
+        if action == "add":
+            timerc.increase_current_time()
+            time_values = timerc.get_time_values()
+            time_json = {"total_time": time_values[0], "current_time": time_values[1]}
+            response = json.dumps(time_json)
+            return server.send_response(response, 200, "application/json")
+        if action == "reduce":
+            timerc.decrease_current_time()
+            return server.send_response(timerc.__current_time)
 
-
-def handle_add_time(r):
-    print(r)
-    add_time()
-    return server.send_response(timerc.__current_time)
-
-
-def reduce_time():
-    timerc.decrease_current_time()
-
-
-def handle_reduce_time(r):
-    print(r)
-    reduce_time()
-    return server.send_response(timerc.__current_time)
+    return server.send_response("error", http_code=400)
 
 
 def handle_controller(request):
@@ -204,16 +201,16 @@ def send_updates_to_server(server: HttpServer):
 
 
 # Attach interrupt handlers
-TIME_ADDER.irq(trigger=machine.Pin.IRQ_RISING, handler=add_time)
-TIME_REDUCER.irq(trigger=machine.Pin.IRQ_RISING, handler=reduce_time)
+TIME_ADDER.irq(
+    trigger=machine.Pin.IRQ_RISING, handler=lambda p: timerc.increase_current_time()
+)
+TIME_REDUCER.irq(
+    trigger=machine.Pin.IRQ_RISING, handler=lambda p: timerc.decrease_current_time()
+)
 
-# Add routes to the server to also control the timer by client
-server.add_route("/add_time", handle_add_time, ["POST"])
-server.add_route("/reduce_time", handle_reduce_time, ["POST"])
-
-
+# Add routes to the server
+server.add_route("/time", handle_time_change, ["POST"])
 server.add_route("/config", handle_config, ["GET", "PATCH"])
-
 server.add_route("/controller", handle_controller, ["POST"])
 
 
