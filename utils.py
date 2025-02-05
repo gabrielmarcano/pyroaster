@@ -68,3 +68,21 @@ def connect_to_network():
         print("Failed to connect to network. Rebooting...")
         time.sleep(5)
         machine.reset()
+
+
+def ota_update(url, filename):
+    """
+    Updates the firmware using OTA
+    """
+    import urequests as requests
+
+    try:
+        print("Downloading the new firmware...")
+        response = requests.get(url)
+        with open(filename, "wb") as f:
+            f.write(response.content)
+        print("Firmware downloaded successfully.")
+    except Exception as e:
+        print("ERROR:", e)
+        print("Failed to download the new firmware.")
+        return
