@@ -123,14 +123,14 @@ def handle_time_change(request):
     if data is not None:
         action = data.get("action")
         if action == "add":
-            timerc.increase_current_time()
-            time_values = timerc.get_time_values()
-            time_json = {"total_time": time_values[0], "current_time": time_values[1]}
-            response = json.dumps(time_json)
-            return server.send_response(response, 200, "application/json")
+            timerc.increase_current_time(None)
         if action == "reduce":
-            timerc.decrease_current_time()
-            return server.send_response(timerc.__current_time)
+            timerc.decrease_current_time(None)
+
+        time_values = timerc.get_time_values()
+        time_json = {"total_time": time_values[0], "current_time": time_values[1]}
+        response = json.dumps(time_json)
+        return server.send_response(response, 200, "application/json")
 
     return server.send_response("error", http_code=400)
 
@@ -200,10 +200,10 @@ def send_updates_to_server(server: HttpServer):
 
 # Attach interrupt handlers
 TIME_ADDER.irq(
-    trigger=machine.Pin.IRQ_RISING, handler=lambda p: timerc.increase_current_time()
+    trigger=machine.Pin.IRQ_RISING, handler=lambda p: timerc.increase_current_time(p)
 )
 TIME_REDUCER.irq(
-    trigger=machine.Pin.IRQ_RISING, handler=lambda p: timerc.decrease_current_time()
+    trigger=machine.Pin.IRQ_RISING, handler=lambda p: timerc.decrease_current_time(p)
 )
 
 # Add routes to the server
