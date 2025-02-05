@@ -52,10 +52,10 @@ Payload:
 
 Returns:
 
-```text
-Controller activated
-Controller deactivated
-Controller stopped
+```json
+{
+  "status": "on" | "off"
+}
 ```
 
 ### POST /time

@@ -128,8 +128,9 @@ def handle_time_change(request):
             timerc.decrease_current_time(None)
 
         time_values = timerc.get_time_values()
-        time_json = {"total_time": time_values[0], "current_time": time_values[1]}
-        response = json.dumps(time_json)
+        response = json.dumps(
+            {"total_time": time_values[0], "current_time": time_values[1]}
+        )
         return server.send_response(response, 200, "application/json")
 
     return server.send_response("error", http_code=400)
@@ -141,13 +142,13 @@ def handle_controller(request):
         action = data.get("action")
         if action == "activate":
             controller.activate()
-            return server.send_response("Controller activated")
         if action == "deactivate":
             controller.deactivate()
-            return server.send_response("Controller deactivated")
         if action == "stop":
             controller.stop()
-            return server.send_response("Controller stopped")
+
+        response = json.dumps(controller.get_status())
+        return server.send_response(response, 200, "application/json")
 
     return server.send_response("error", http_code=400)
 

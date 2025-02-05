@@ -22,6 +22,11 @@ class Controller:
     def deactivate(self):
         self.__is_active = False
 
+    def get_status(self):
+        return {
+            "status": "on" if self.__is_active else "off",
+        }
+
     def run(self):
         if not self.__is_active:
             return
