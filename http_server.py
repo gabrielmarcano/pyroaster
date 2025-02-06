@@ -178,7 +178,8 @@ class HttpServer:
         """SSE Handler"""
 
         request_headers = self.get_request_headers(request)
-        if request_headers.get("Accept") != "text/event-stream":
+        accept_header = request_headers.get("Accept") or request_headers.get("accept")
+        if accept_header != "text/event-stream":
             self.send_response("Not Acceptable", http_code=406)
             return
 
