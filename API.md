@@ -10,7 +10,8 @@ Returns:
 {
   "mode": "cafe" | "cacao" | "mani",
   "starting_temperature": number,
-  "timer": number
+  "timer": number,
+  "status": "on" | "off"
 }
 ```
 
@@ -24,7 +25,7 @@ Payload: (Not all required)
 {
   "mode": "cafe" | "cacao" | "mani",
   "starting_temperature": number,
-  "timer": number
+  "timer": number,
 }
 ```
 
@@ -34,7 +35,8 @@ Returns:
 {
   "mode": "cafe" | "cacao" | "mani",
   "starting_temperature": number,
-  "timer": number
+  "timer": number,
+  "status": "on" | "off"
 }
 ```
 
@@ -54,6 +56,9 @@ Returns:
 
 ```json
 {
+  "mode": "cafe" | "cacao" | "mani",
+  "starting_temperature": number,
+  "timer": number,
   "status": "on" | "off"
 }
 ```

@@ -188,13 +188,7 @@ def send_updates_to_server(server: HttpServer):
         if motor_states is not None:
             server.send_sse(motor_json, "states")
 
-        controller_status = {
-            "active": controller.__is_active,
-            "mode": controller.__mode,
-            "time": controller.__time,
-            "starting_temperature": controller.__starting_temperature,
-        }
-        server.send_sse(controller_status, "controller")
+        server.send_sse(controller.get_config(), "controller")
 
         time.sleep(1)
 
