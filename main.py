@@ -147,7 +147,7 @@ def handle_controller(request):
         if action == "stop":
             controller.stop()
 
-        response = json.dumps(controller.get_status())
+        response = json.dumps(controller.get_config())
         return server.send_response(response, 200, "application/json")
 
     return server.send_response("error", http_code=400)
