@@ -53,6 +53,8 @@ def connect_to_network():
         import network
         from machine import Pin
 
+        internal_led = Pin(2, Pin.OUT, value=0)
+
         wlan = network.WLAN(network.STA_IF)
         wlan.active(True)
         if not wlan.isconnected():
@@ -61,9 +63,7 @@ def connect_to_network():
             while not wlan.isconnected():
                 pass
         print(f"Network connected. IP config: {wlan.ipconfig("addr4")}")
-        Pin(
-            2, Pin.OUT, value=1
-        )  # Turn on the built-in LED to indicate that the device is connected to the network
+        internal_led.on()  # Turn on the built-in LED to indicate that the device is connected to the network
     except Exception as e:
         import machine
         import time
