@@ -16,15 +16,15 @@ class TimerController:
 
     def increase_current_time(self, t):
         """
-        Increase the current time by 1s
+        Increase the current time by 1m
         """
-        self.__current_time += 1
+        self.__current_time += 60
 
     def decrease_current_time(self, t):
         """
-        Decrease the current time by 1s
+        Decrease the current time by 1m
         """
-        self.__current_time -= 1
+        self.__current_time -= 60
 
     def set_timer_values(self, time: int):
         """
