@@ -126,6 +126,9 @@ def handle_time_change(request):
             timerc.increase_current_time(None)
         if action == "reduce":
             timerc.decrease_current_time(None)
+        if action == "change":
+            time = data.get("time")
+            timerc.set_timer_values(time)
 
         time_values = timerc.get_time_values()
         response = json.dumps(
