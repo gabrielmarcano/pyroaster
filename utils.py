@@ -1,8 +1,14 @@
-def format_time(minutes, seconds):
+def format_time(seconds):
     """
-    Formats time in minutes and seconds
+    Formats time in hours, minutes and seconds
     """
-    return f"{minutes:02d}:{seconds:02d}"
+    if seconds is not None:
+        hours = seconds // 3600 % 24
+        minutes = seconds % 3600 // 60
+        seconds = seconds % 3600 % 60
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+    return "00:00:00"
 
 
 def make_buzzer_sound(pin):
