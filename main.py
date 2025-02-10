@@ -48,13 +48,13 @@ except Exception as e:
     logger.info(f"Rebooting...")
     machine.reset()
 
-try:
-    lcd = LcdController(LCD_SDA, LCD_SCL)
-    lcd.show_ip()
-except Exception as e:
-    print(f"Failed to initialize LCD:\n{e}\n")
-    print(f"Rebooting...")
-    machine.reset()
+# try:
+#     lcd = LcdController(LCD_SDA, LCD_SCL)
+#     lcd.show_ip()
+# except Exception as e:
+#     print(f"Failed to initialize LCD:\n{e}\n")
+#     print(f"Rebooting...")
+#     machine.reset()
 
 # try:
 #     utils.play_melody(BUZZER_PIN)
