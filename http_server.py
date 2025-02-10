@@ -117,6 +117,14 @@ class HttpServer:
             return None, None
         return method, path
 
+    def parse_json_body(self, request: str):
+        """Parse the JSON body of the request."""
+        body = self.get_request_body(request)
+        try:
+            return json.loads(body)
+        except json.JSONDecodeError:
+            return None
+
     def handle_request(self, request: str):
         """Handle incoming requests and route them."""
         method, path = self.parse_request(request)
@@ -170,7 +178,8 @@ class HttpServer:
         """SSE Handler"""
 
         request_headers = self.get_request_headers(request)
-        if request_headers.get("Accept") != "text/event-stream":
+        accept_header = request_headers.get("Accept") or request_headers.get("accept")
+        if accept_header != "text/event-stream":
             self.send_response("Not Acceptable", http_code=406)
             return
 
@@ -178,7 +187,7 @@ class HttpServer:
             "Cache-Control: no-cache",
             "Access-Control-Allow-Origin: *",
             "Connection: keep-alive",
-            "Retry-After: 5",  # Optional: to suggest reconnection delay
+            # "Retry-After: 5",  # Optional: to suggest reconnection delay
         ]
 
         self.send_response(
@@ -204,6 +213,10 @@ class HttpServer:
             f"HTTP/1.1 {http_code} {HTTP_CODES.get(http_code)}",
             f"Content-Type: {content_type}",
         ]
+
+        if content_type != "text/event-stream":
+            headers.append(f"Content-Length: {len(body)}")
+            headers.append("Connection: close")
 
         if extend_headers:
             headers.extend(extend_headers)

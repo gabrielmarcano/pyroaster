@@ -14,31 +14,31 @@ class MAX6675:
         """
         # Thermocouple
         self._sck = sck
-        self._sck.low()
+        self._sck.off()
 
         self._cs = cs
-        self._cs.high()
+        self._cs.on()
 
         self._so = so
-        self._so.low()
+        self._so.off()
 
         self._last_measurement_start = 0
         self._last_read_temp = 0
         self._error = 0
 
     def _cycle_sck(self):
-        self._sck.high()
+        self._sck.on()
         time.sleep_us(1)
-        self._sck.low()
+        self._sck.off()
         time.sleep_us(1)
 
     def refresh(self):
         """
         Start a new measurement.
         """
-        self._cs.low()
+        self._cs.off()
         time.sleep_us(10)
-        self._cs.high()
+        self._cs.on()
         self._last_measurement_start = time.ticks_ms()
 
     def ready(self):
@@ -74,10 +74,10 @@ class MAX6675:
         """
         # Check if new reading is available
         if self.ready():
-            # Bring CS pin low to start protocol for reading result of
+            # Bring CS pin off to start protocol for reading result of
             # the conversion process. Forcing the pin down outputs
             # first (dummy) sign bit 15.
-            self._cs.low()
+            self._cs.off()
             time.sleep_us(10)
 
             # Read temperature bits 14-3 from MAX6675.
@@ -97,7 +97,7 @@ class MAX6675:
                 self._cycle_sck()
 
             # Finish protocol and start new measurement
-            self._cs.high()
+            self._cs.on()
             self._last_measurement_start = time.ticks_ms()
 
             self._last_read_temp = value * 0.25

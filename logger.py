@@ -3,12 +3,11 @@ import utime
 
 class SimpleLogger:
     def __init__(self):
-        self.timestamp = utime.localtime()
+        pass
 
     def log(self, message, level="INFO"):
-        print(
-            f"[{self.timestamp[3]}:{self.timestamp[4]}:{self.timestamp[5]}] [{level}] {message}"
-        )
+        timestamp = utime.localtime()
+        print(f"[{timestamp[3]}:{timestamp[4]}:{timestamp[5]}] [{level}] {message}")
 
     def warning(self, message):
         self.log(message, "WARNING")
