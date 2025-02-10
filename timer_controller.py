@@ -16,14 +16,18 @@ class TimerController:
 
     def increase_current_time(self, t):
         """
-        Increase the current time by 1m
+        Increase the current time and total time by 1m to maintain percentage consistency
         """
         self.__current_time += 60
+        self.__total_time += 60
 
     def decrease_current_time(self, t):
         """
-        Decrease the current time by 1m
+        Decrease the current time by 1s if called from hardware timer or 1m if called from somewhere else
         """
+        if t:
+            self.__current_time -= 1
+            return
         self.__current_time -= 60
 
     def set_timer_values(self, time: int):
