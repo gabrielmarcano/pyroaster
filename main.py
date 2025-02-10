@@ -1,19 +1,18 @@
 import json
 import machine
 
-# from machine_i2c_lcd import I2cLcd
-# import network
 import _thread
 import time
 
 # import utils
 
 from http_server import HttpServer
-from logger import SimpleLogger
+from lcd_controller import LcdController
 from timer_controller import TimerController
 from motor_controller import MotorController
 from sensor_controller import SensorController
 from controller import Controller
+from logger import SimpleLogger
 
 # Pins
 
@@ -23,11 +22,8 @@ MAX_SO = machine.Pin(19, machine.Pin.IN)
 
 DHT_PIN = machine.Pin(18)
 
-# I2C_ADDR = 0x27
-# I2C_NUM_ROWS = 2
-# I2C_NUM_COLS = 16
-# LCD_SDA = machine.Pin(21)
-# LCD_SCL = machine.Pin(22)
+LCD_SDA = machine.Pin(21)
+LCD_SCL = machine.Pin(22)
 
 MOTOR1_PIN = machine.Pin(25, machine.Pin.OUT, value=0)
 MOTOR2_PIN = machine.Pin(26, machine.Pin.OUT, value=0)
@@ -52,19 +48,13 @@ except Exception as e:
     logger.info(f"Rebooting...")
     machine.reset()
 
-# try:
-#     i2c = machine.SoftI2C(sda=LCD_SDA, scl=LCD_SCL, freq=400000)
-#     lcd = I2cLcd(i2c, I2C_ADDR, I2C_NUM_ROWS, I2C_NUM_COLS)
-
-#     lcd.clear()
-#     lcd.putstr("IP:")  # By default, it will start at (0,0) if the display is empty
-#     lcd.move_to(0, 1)
-#     lcd.putstr(f"{network.WLAN(network.STA_IF).ipconfig("addr4")[0]}")
-#     time.sleep(5)
-# except Exception as e:
-#     print(f"Failed to initialize LCD:\n{e}\n")
-#     print(f"Rebooting...")
-#     machine.reset()
+try:
+    lcd = LcdController(LCD_SDA, LCD_SCL)
+    lcd.show_ip()
+except Exception as e:
+    print(f"Failed to initialize LCD:\n{e}\n")
+    print(f"Rebooting...")
+    machine.reset()
 
 # try:
 #     utils.play_melody(BUZZER_PIN)
@@ -156,13 +146,6 @@ def handle_controller(request):
     return server.send_response("error", http_code=400)
 
 
-# def refresh_lcd_data():
-#     lcd.clear()
-#     lcd.putstr("foo")
-#     lcd.move_to(0, 1)
-#     lcd.putstr("bar")
-
-
 def send_updates_to_server(server: HttpServer):
     """
     Send sensor data to the server every second
@@ -171,8 +154,8 @@ def send_updates_to_server(server: HttpServer):
         sensor_data = sensorc.read_sensor_data()
         time_values = timerc.get_time_values()
         motor_states = motorc.read_motor_states()
-        # refresh_lcd_data()
         controller.run()
+        # lcd.show_data(sensor_data[0], sensor_data[1], time_values[1])
 
         sensor_json = {"temperature": sensor_data[0], "humidity": sensor_data[1]}
         time_json = {"total_time": time_values[0], "current_time": time_values[1]}
