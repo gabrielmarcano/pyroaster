@@ -26,7 +26,7 @@ class Controller:
         if not self.__is_active:
             return
 
-        if not self.__timer.__timer_is_active:
+        if not self.__timer.get_timer_status():
             if self.__sensor.get_temperature() >= self.__starting_temperature:
                 self.__motor.start_motor_a()
                 self.__timer.set_timer_values(self.__time)

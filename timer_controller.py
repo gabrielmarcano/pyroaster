@@ -61,6 +61,12 @@ class TimerController:
         """
         return self.__total_time, self.__current_time
 
+    def get_timer_status(self):
+        """
+        Get timer status
+        """
+        return self.__timer_is_active
+
     def reset_timer(self):
         """
         Reset time values
