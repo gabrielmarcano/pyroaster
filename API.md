@@ -41,7 +41,6 @@ Returns:
 
 ```json
 {
-  "mode": "cafe" | "cacao" | "mani",
   "starting_temperature": number,
   "timer": number,
   "status": "on" | "off"
@@ -56,7 +55,6 @@ Payload: (Not all required)
 
 ```json
 {
-  "mode": "cafe" | "cacao" | "mani",
   "starting_temperature": number,
   "timer": number,
 }
@@ -66,7 +64,6 @@ Returns:
 
 ```json
 {
-  "mode": "cafe" | "cacao" | "mani",
   "starting_temperature": number,
   "timer": number,
   "status": "on" | "off"
@@ -89,7 +86,6 @@ Returns:
 
 ```json
 {
-  "mode": "cafe" | "cacao" | "mani",
   "starting_temperature": number,
   "timer": number,
   "status": "on" | "off"
@@ -160,7 +156,6 @@ event: controller
 ```json
 {
   "active": boolean,
-  "mode": "cafe" | "cacao" | "mani" | None,
   "time": number,
   "starting_temperature": number
 }

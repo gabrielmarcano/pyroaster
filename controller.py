@@ -11,7 +11,6 @@ class Controller:
         self.__timer = timer
         self.__motor = motor
 
-        self.__mode = None
         self.__starting_temperature = 200
         self.__time = 3600
         self.__is_active = False
@@ -50,14 +49,12 @@ class Controller:
 
     def get_config(self):
         return {
-            "mode": self.__mode,
             "starting_temperature": self.__starting_temperature,
             "time": self.__time,
             "status": "on" if self.__is_active else "off",
         }
 
-    def set_config(self, mode, starting_temperature, time):
-        self.__mode = mode if mode is not None else self.__mode
+    def set_config(self, starting_temperature, time):
         self.__starting_temperature = (
             starting_temperature
             if starting_temperature is not None

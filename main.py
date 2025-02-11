@@ -149,7 +149,7 @@ def handle_controller_config(request):
         if data is not None:
             response = json.dumps(
                 controller.set_config(
-                    data.get("mode"), data.get("starting_temperature"), data.get("time")
+                    data.get("starting_temperature"), data.get("time")
                 )
             )
             return server.send_response(response, 200, "application/json")
