@@ -90,7 +90,56 @@ except Exception as e:
     machine.reset()
 
 
-def handle_config(request):
+def handle_saved_config(request):
+    if "GET" in request:
+        config_json = open("config.json", "r")
+        response = config_json.read()
+        config_json.close()
+        return server.send_response(response, 200, "application/json")
+
+    if "POST" in request:
+        data = server.parse_json_body(request)
+        if data is not None:
+            key = list(data.keys())
+
+            if key[0] not in ["cacao", "cafe", "mani"]:
+                config_json = open("config.json", "r")
+                config = json.loads(config_json.read())
+                config.update(data)
+                config_json.close()
+                # Start with an empty file
+                config_json = open("config.json", "w")
+                config_json.write(json.dumps(config))
+                config_json.close()
+                # Read new config
+                config_json = open("config.json", "r")
+                response = config_json.read()
+                config_json.close()
+                return server.send_response(response, 200, "application/json")
+
+            return server.send_response("error", http_code=400)
+
+    if "DELETE" in request:
+        _, path = server.parse_request(request)
+        name = path.split("/")[2]
+        if name is not None:
+            config_json = open("config.json", "r")
+            config = json.loads(config_json.read())
+            config.pop(name)
+            config_json.close()
+            # Start with an empty file
+            config_json = open("config.json", "w")
+            config_json.write(json.dumps(config))
+            config_json.close()
+            # Read new config
+            config_json = open("config.json", "r")
+            response = config_json.read()
+            config_json.close()
+            return server.send_response(response, 200, "application/json")
+        return server.send_response("error", 400)
+
+
+def handle_controller_config(request):
     if "GET" in request:
         response = json.dumps(controller.get_config())
         server.send_response(response, 200, "application/json")
@@ -106,6 +155,23 @@ def handle_config(request):
             return server.send_response(response, 200, "application/json")
 
         server.send_response("error", http_code=400)
+
+
+def handle_controller(request):
+    data = server.parse_json_body(request)
+    if data is not None:
+        action = data.get("action")
+        if action == "activate":
+            controller.activate()
+        if action == "deactivate":
+            controller.deactivate()
+        if action == "stop":
+            controller.stop()
+
+        response = json.dumps(controller.get_config())
+        return server.send_response(response, 200, "application/json")
+
+    return server.send_response("error", http_code=400)
 
 
 def handle_time_change(request):
@@ -124,23 +190,6 @@ def handle_time_change(request):
         response = json.dumps(
             {"total_time": time_values[0], "current_time": time_values[1]}
         )
-        return server.send_response(response, 200, "application/json")
-
-    return server.send_response("error", http_code=400)
-
-
-def handle_controller(request):
-    data = server.parse_json_body(request)
-    if data is not None:
-        action = data.get("action")
-        if action == "activate":
-            controller.activate()
-        if action == "deactivate":
-            controller.deactivate()
-        if action == "stop":
-            controller.stop()
-
-        response = json.dumps(controller.get_config())
         return server.send_response(response, 200, "application/json")
 
     return server.send_response("error", http_code=400)
@@ -189,8 +238,9 @@ TIME_REDUCER.irq(
 
 # Add routes to the server
 server.add_route("/time", handle_time_change, ["POST"])
-server.add_route("/config", handle_config, ["GET", "PATCH"])
+server.add_route("/controller_config", handle_controller_config, ["GET", "PATCH"])
 server.add_route("/controller", handle_controller, ["POST"])
+server.add_route("/config", handle_saved_config, ["GET", "POST", "DELETE"])
 
 
 # Start the update function in a new thread

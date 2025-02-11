@@ -2,7 +2,40 @@
 
 ### GET /config
 
-Returns the actual configuration.
+Returns the internal configuration.
+
+Returns:
+
+```json
+{
+  "[config_name]": {
+    "starting_temperature": number,
+    "timer": number,
+  },
+  ...
+}
+```
+
+### POST /config
+
+Save new configuration parameters.
+
+```json
+{
+  "[config_name]": {
+    "starting_temperature": number,
+    "timer": number,
+  },
+}
+```
+
+### DELETE /config/:name
+
+Delete saved configuration.
+
+### GET /controller_config
+
+Returns the controller configuration.
 
 Returns:
 
@@ -15,9 +48,9 @@ Returns:
 }
 ```
 
-### PATCH /config
+### PATCH /controller_config
 
-Change the configuration parameters.
+Change the controller configuration parameters.
 
 Payload: (Not all required)
 
