@@ -25,16 +25,16 @@
 
 ## Summary
 
-All logic depends on the data given by the **Thermocouple** & **DHT22** sensors, and the selected mode in the **4 Position Rotary Switch**. It's intention is to control 3 motors, which will turn on or off based on the temperature that it reaches.
+All logic depends on the data given by the **Thermocouple (MAX6675)** & **DHT22** sensors. It's intention is to control 3 motors, which will turn on or off based on the temperature that it reaches.
 
-When the temperature reaches 140ºC, 170ºC or 180ºC (depending on the mode) it feeds a relay that controls the first motor,
-and also starts a timer that can be 12, 20 or 33 minutes which also depends on the mode.
+When the temperature reaches the value set on the config, it feeds a relay that controls the first motor,
+and also starts a timer that was set on the config. Extra configs can be saved.
 
 There will be two push buttons, one will add +1min to the time (and start the timer if there isn't one already), and the other will reduce -1min to the time.
 
-When the timer stops, a buzzer starts making noise and also feeds the other 2 relays that controls the second & third motor.
+When the timer stops, a buzzer\* starts making noise and also feeds the other 2 relays that controls the second & third motor.
 
-> Motors can only be stopped manually by either the security button or through the web interface. If Motor 2 or Motor 3 are stopped via the web interface, they will stop any action taken after the timer stops.
+> Motors can only be stopped manually by either the security button or through the app interface.
 
 ## Resources
 
