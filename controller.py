@@ -11,8 +11,8 @@ class Controller:
         self.__timer = timer
         self.__motor = motor
 
-        self.__starting_temperature = 200
-        self.__time = 3600
+        self.__starting_temperature = 0
+        self.__time = 0
         self.__is_active = False
 
     def activate(self):
