@@ -27,8 +27,11 @@ class TimerController:
         """
         if t:
             self.__current_time -= 1
-            return
-        self.__current_time -= 60
+        else:
+            self.__current_time -= 60
+
+        if self.__current_time <= 0:
+            self.__current_time = 0
 
     def set_timer_values(self, time: int):
         """
