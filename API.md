@@ -113,6 +113,35 @@ Returns:
 }
 ```
 
+### POST /motors
+
+Starts or stop a motor.
+
+Payload:
+
+```json
+{
+  "motor_a": 0 | 1,
+} |
+{
+  "motor_b": 0 | 1,
+} |
+{
+  "motor_c": 0 | 1,
+}
+
+```
+
+Returns:
+
+```json
+{
+  "motor_a": 0 | 1,
+  "motor_b": 0 | 1,
+  "motor_c": 0 | 1,
+}
+```
+
 ### POST /reset
 
 Resets the esp32.

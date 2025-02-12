@@ -195,6 +195,34 @@ def handle_time_change(request):
     return server.send_response("error", http_code=400)
 
 
+def handle_motor_change(request):
+    data = server.parse_json_body(request)
+    if data is not None:
+        motor_a = data.get("motor_a")
+        if motor_a is not None:
+            motorc.start_motor_a() if motor_a else motorc.stop_motor_a()
+
+        motor_b = data.get("motor_b")
+        if motor_b is not None:
+            motorc.start_motor_b() if motor_b else motorc.stop_motor_b()
+
+        motor_c = data.get("motor_c")
+        if motor_c is not None:
+            motorc.start_motor_c() if motor_c else motorc.stop_motor_c()
+
+        motor_states = motorc.read_motor_states()
+        response = json.dumps(
+            {
+                "motor_a": motor_states[0],
+                "motor_b": motor_states[1],
+                "motor_c": motor_states[2],
+            }
+        )
+        return server.send_response(response, 200, "application/json")
+
+    return server.send_response("error", http_code=400)
+
+
 def send_updates_to_server(server: HttpServer):
     """
     Send sensor data to the server every second
@@ -240,6 +268,7 @@ TIME_REDUCER.irq(
 server.add_route("/time", handle_time_change, ["POST"])
 server.add_route("/controller_config", handle_controller_config, ["GET", "PATCH"])
 server.add_route("/controller", handle_controller, ["POST"])
+server.add_route("/motors", handle_motor_change, ["POST"])
 server.add_route("/config", handle_saved_config, ["GET", "POST", "DELETE"])
 
 
