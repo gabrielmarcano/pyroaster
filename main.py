@@ -29,13 +29,13 @@ MOTOR1_PIN = machine.Pin(25, machine.Pin.OUT, value=0)
 MOTOR2_PIN = machine.Pin(26, machine.Pin.OUT, value=0)
 MOTOR3_PIN = machine.Pin(27, machine.Pin.OUT, value=0)
 
-BUZZER_PIN = machine.Pin(14, machine.Pin.OUT)
+# BUZZER_PIN = machine.Pin(14, machine.Pin.OUT)
 
 TIME_A = machine.Pin(36, machine.Pin.IN)
 TIME_B = machine.Pin(34, machine.Pin.IN)
 TIME_C = machine.Pin(35, machine.Pin.IN)
-TIME_ADDER = machine.Pin(12, machine.Pin.IN)
-TIME_REDUCER = machine.Pin(13, machine.Pin.IN)
+# TIME_ADDER = machine.Pin(12, machine.Pin.IN)
+# TIME_REDUCER = machine.Pin(13, machine.Pin.IN)
 
 logger = SimpleLogger()
 
@@ -48,13 +48,13 @@ except Exception as e:
     logger.info(f"Rebooting...")
     machine.reset()
 
-# try:
-#     lcd = LcdController(LCD_SDA, LCD_SCL)
-#     lcd.show_ip()
-# except Exception as e:
-#     print(f"Failed to initialize LCD:\n{e}\n")
-#     print(f"Rebooting...")
-#     machine.reset()
+try:
+    lcd = LcdController(LCD_SDA, LCD_SCL)
+    lcd.show_ip()
+except Exception as e:
+    print(f"Failed to initialize LCD:\n{e}\n")
+    print(f"Rebooting...")
+    machine.reset()
 
 # try:
 #     utils.play_melody(BUZZER_PIN)
@@ -232,7 +232,7 @@ def send_updates_to_server(server: HttpServer):
         time_values = timerc.get_time_values()
         motor_states = motorc.read_motor_states()
         controller.run()
-        # lcd.show_data(sensor_data[0], sensor_data[1], time_values[1])
+        lcd.show_data(sensor_data[0], sensor_data[1], time_values[1])
 
         sensor_json = {"temperature": sensor_data[0], "humidity": sensor_data[1]}
         time_json = {"total_time": time_values[0], "current_time": time_values[1]}
@@ -257,12 +257,12 @@ def send_updates_to_server(server: HttpServer):
 
 
 # Attach interrupt handlers
-TIME_ADDER.irq(
-    trigger=machine.Pin.IRQ_RISING, handler=lambda p: timerc.increase_current_time(p)
-)
-TIME_REDUCER.irq(
-    trigger=machine.Pin.IRQ_RISING, handler=lambda p: timerc.decrease_current_time(p)
-)
+# TIME_ADDER.irq(
+#     trigger=machine.Pin.IRQ_RISING, handler=lambda p: timerc.increase_current_time(p)
+# )
+# TIME_REDUCER.irq(
+#     trigger=machine.Pin.IRQ_RISING, handler=lambda p: timerc.decrease_current_time(p)
+# )
 
 # Add routes to the server
 server.add_route("/time", handle_time_change, ["POST"])
