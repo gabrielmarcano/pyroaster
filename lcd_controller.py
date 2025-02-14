@@ -42,7 +42,7 @@ class LcdController:
         """
         try:
             self.__lcd.clear()
-            self.__lcd.putstr(f"T: {temperature}°C H: {humidity}%")
+            self.__lcd.putstr(f"T: {temperature}C H: {humidity}%")
             self.__lcd.move_to(0, 1)
             self.__lcd.putstr(format_time(time_in_seconds))
         except Exception as e:
