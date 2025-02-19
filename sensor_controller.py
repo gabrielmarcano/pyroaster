@@ -1,8 +1,6 @@
 from max6675 import MAX6675
 import dht
 
-import random
-
 
 class SensorController:
     def __init__(self, DHT_PIN, MAX_SCK, MAX_CS, MAX_SO):

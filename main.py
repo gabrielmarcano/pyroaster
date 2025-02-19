@@ -4,8 +4,6 @@ import machine
 import _thread
 import time
 
-# import utils
-
 from http_server import HttpServer
 from lcd_controller import LcdController
 from timer_controller import TimerController
