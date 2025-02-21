@@ -1,5 +1,5 @@
 import machine
-from machine_i2c_lcd import I2cLcd
+from drivers.machine_i2c_lcd import I2cLcd
 import network
 import time
 

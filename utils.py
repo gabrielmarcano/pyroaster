@@ -55,7 +55,7 @@ def connect_to_network():
     Connects to a wireless network using the given SSID and password
     """
     try:
-        import config
+        import env
         import network
         from machine import Pin
 
@@ -65,7 +65,7 @@ def connect_to_network():
         wlan.active(True)
         if not wlan.isconnected():
             print("Connecting to the network...")
-            wlan.connect(config.WIFI_SSID, config.WIFI_PASSWD)
+            wlan.connect(env.WIFI_SSID, env.WIFI_PASSWD)
             while not wlan.isconnected():
                 pass
         print(f"Network connected. IP config: {wlan.ipconfig("addr4")}")

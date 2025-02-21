@@ -1,4 +1,4 @@
-from max6675 import MAX6675
+from drivers.max6675 import MAX6675
 import dht
 
 

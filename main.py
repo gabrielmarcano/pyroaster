@@ -1,15 +1,18 @@
 import json
 import machine
 
-import _thread
 import time
 
-from http_server import HttpServer
-from lcd_controller import LcdController
-from timer_controller import TimerController
-from motor_controller import MotorController
-from sensor_controller import SensorController
+from microdot import Microdot
+from microdot.sse import with_sse
+import asyncio
+
+from lib.lcd import LcdController
+from lib.timer import TimerController
+from lib.motors import MotorController
+from lib.sensors import SensorController
 from controller import Controller
+
 from logger import SimpleLogger
 
 # Pins
@@ -29,29 +32,14 @@ MOTOR3_PIN = machine.Pin(27, machine.Pin.OUT, value=0)
 
 # BUZZER_PIN = machine.Pin(14, machine.Pin.OUT)
 
-TIME_A = machine.Pin(36, machine.Pin.IN)
-TIME_B = machine.Pin(34, machine.Pin.IN)
-TIME_C = machine.Pin(35, machine.Pin.IN)
-# TIME_ADDER = machine.Pin(12, machine.Pin.IN)
-# TIME_REDUCER = machine.Pin(13, machine.Pin.IN)
-
 logger = SimpleLogger()
-
-try:
-    server = HttpServer()
-    server.add_route("/events", server.handle_sse)
-    server.add_route("/reset", lambda r: machine.reset(), ["POST"])
-except Exception as e:
-    logger.error(f"Failed to initialize the server:\n{e}\n")
-    logger.info(f"Rebooting...")
-    machine.reset()
 
 try:
     lcd = LcdController(LCD_SDA, LCD_SCL)
     lcd.show_ip()
 except Exception as e:
-    print(f"Failed to initialize LCD:\n{e}\n")
-    print(f"Rebooting...")
+    logger.error(f"Failed to initialize LCD:\n{e}\n")
+    logger.info(f"Rebooting...")
     machine.reset()
 
 # try:
@@ -88,15 +76,94 @@ except Exception as e:
     machine.reset()
 
 
-def handle_saved_config(request):
-    if "GET" in request:
+app = Microdot()
+
+
+# Add routes to the server
+@app.route("/time", methods=["POST"])
+async def change_time(request):
+    data = request.json
+    action = data.get("action")
+    if action == "add":
+        timerc.increase_current_time(None)
+    if action == "reduce":
+        timerc.decrease_current_time(None)
+    if action == "change":
+        time = data.get("time")
+        timerc.set_timer_values(time)
+
+    time_values = (
+        timerc.get_time_values()
+    )  # TODO: change get_time_values to return json
+
+    return {"total_time": time_values[0], "current_time": time_values[1]}
+
+
+@app.route("/controller_config", methods=["GET", "PATCH"])
+async def handle_controller_config(request):
+    if request.method == "GET":
+        return controller.get_config()
+    elif request.method == "PATCH":
+        data = request.json
+        if data is not None:
+            return controller.set_config(
+                data.get("starting_temperature"), data.get("time")
+            )
+
+
+@app.route("/controller", methods=["POST"])
+async def handle_controller(request):
+    data = request.json
+    if data is not None:
+        action = data.get("action")
+
+        if action == "activate":
+            controller.activate()
+        if action == "deactivate":
+            controller.deactivate()
+        if action == "stop":
+            controller.stop()
+
+        return controller.get_config()
+
+
+@app.route("/motors", methods=["POST"])
+async def handle_motor_change(request):
+    data = request.json
+    if data is not None:
+        motor_a = data.get("motor_a")
+        if motor_a is not None:
+            motorc.start_motor_a() if motor_a else motorc.stop_motor_a()
+
+        motor_b = data.get("motor_b")
+        if motor_b is not None:
+            motorc.start_motor_b() if motor_b else motorc.stop_motor_b()
+
+        motor_c = data.get("motor_c")
+        if motor_c is not None:
+            motorc.start_motor_c() if motor_c else motorc.stop_motor_c()
+
+        motor_states = (
+            motorc.read_motor_states()
+        )  # TODO: change get_time_values to return json
+
+        return {
+            "motor_a": motor_states[0],
+            "motor_b": motor_states[1],
+            "motor_c": motor_states[2],
+        }
+
+
+@app.route("/config/<name>", methods=["GET", "POST", "DELETE"])
+async def handle_saved_config(request, name):
+    if request.method == "GET":
         config_json = open("config.json", "r")
         response = config_json.read()
         config_json.close()
-        return server.send_response(response, 200, "application/json")
+        return response
 
-    if "POST" in request:
-        data = server.parse_json_body(request)
+    elif request.method == "POST":
+        data = request.json
         if data is not None:
             key = list(data.keys())
 
@@ -113,13 +180,9 @@ def handle_saved_config(request):
                 config_json = open("config.json", "r")
                 response = config_json.read()
                 config_json.close()
-                return server.send_response(response, 200, "application/json")
+                return response
 
-            return server.send_response("error", http_code=400)
-
-    if "DELETE" in request:
-        _, path = server.parse_request(request)
-        name = path.split("/")[2]
+    elif request.method == "DELETE":
         if name is not None:
             config_json = open("config.json", "r")
             config = json.loads(config_json.read())
@@ -133,144 +196,45 @@ def handle_saved_config(request):
             config_json = open("config.json", "r")
             response = config_json.read()
             config_json.close()
-            return server.send_response(response, 200, "application/json")
-        return server.send_response("error", 400)
+            return response
 
 
-def handle_controller_config(request):
-    if "GET" in request:
-        response = json.dumps(controller.get_config())
-        server.send_response(response, 200, "application/json")
-
-    if "PATCH" in request:
-        data = server.parse_json_body(request)
-        if data is not None:
-            response = json.dumps(
-                controller.set_config(
-                    data.get("starting_temperature"), data.get("time")
-                )
-            )
-            return server.send_response(response, 200, "application/json")
-
-        server.send_response("error", http_code=400)
+@app.route("/reset", methods=["POST"])
+async def handle_reset(request):
+    logger.info("Rebooting...")
+    time.sleep(3)
+    machine.reset()
 
 
-def handle_controller(request):
-    data = server.parse_json_body(request)
-    if data is not None:
-        action = data.get("action")
-        if action == "activate":
-            controller.activate()
-        if action == "deactivate":
-            controller.deactivate()
-        if action == "stop":
-            controller.stop()
+@app.route("/events", methods=["GET"])
+@with_sse
+async def handle_events(request, sse):
+    logger.info("Client connected")
+    try:
+        while True:
+            sensor_data = sensorc.read_sensor_data()
+            time_values = timerc.get_time_values()
+            motor_states = motorc.read_motor_states()
+            lcd.show_data(sensor_data[0], sensor_data[1], time_values[1])
+            controller.run()
 
-        response = json.dumps(controller.get_config())
-        return server.send_response(response, 200, "application/json")
-
-    return server.send_response("error", http_code=400)
-
-
-def handle_time_change(request):
-    data = server.parse_json_body(request)
-    if data is not None:
-        action = data.get("action")
-        if action == "add":
-            timerc.increase_current_time(None)
-        if action == "reduce":
-            timerc.decrease_current_time(None)
-        if action == "change":
-            time = data.get("time")
-            timerc.set_timer_values(time)
-
-        time_values = timerc.get_time_values()
-        response = json.dumps(
-            {"total_time": time_values[0], "current_time": time_values[1]}
-        )
-        return server.send_response(response, 200, "application/json")
-
-    return server.send_response("error", http_code=400)
-
-
-def handle_motor_change(request):
-    data = server.parse_json_body(request)
-    if data is not None:
-        motor_a = data.get("motor_a")
-        if motor_a is not None:
-            motorc.start_motor_a() if motor_a else motorc.stop_motor_a()
-
-        motor_b = data.get("motor_b")
-        if motor_b is not None:
-            motorc.start_motor_b() if motor_b else motorc.stop_motor_b()
-
-        motor_c = data.get("motor_c")
-        if motor_c is not None:
-            motorc.start_motor_c() if motor_c else motorc.stop_motor_c()
-
-        motor_states = motorc.read_motor_states()
-        response = json.dumps(
-            {
+            sensor_json = {"temperature": sensor_data[0], "humidity": sensor_data[1]}
+            time_json = {"total_time": time_values[0], "current_time": time_values[1]}
+            motor_json = {
                 "motor_a": motor_states[0],
                 "motor_b": motor_states[1],
                 "motor_c": motor_states[2],
             }
-        )
-        return server.send_response(response, 200, "application/json")
 
-    return server.send_response("error", http_code=400)
+            await sse.send(sensor_json, event="sensors")
+            await sse.send(time_json, event="time")
+            await sse.send(motor_json, event="states")
+            await sse.send(controller.get_config(), event="controller")
 
-
-def send_updates_to_server(server: HttpServer):
-    """
-    Send sensor data to the server every second
-    """
-    while True:
-        sensor_data = sensorc.read_sensor_data()
-        time_values = timerc.get_time_values()
-        motor_states = motorc.read_motor_states()
-        controller.run()
-        lcd.show_data(sensor_data[0], sensor_data[1], time_values[1])
-
-        sensor_json = {"temperature": sensor_data[0], "humidity": sensor_data[1]}
-        time_json = {"total_time": time_values[0], "current_time": time_values[1]}
-        motor_json = {
-            "motor_a": motor_states[0],
-            "motor_b": motor_states[1],
-            "motor_c": motor_states[2],
-        }
-
-        if sensor_data is not None:
-            server.send_sse(sensor_json, "sensors")
-
-        if time_values is not None:
-            server.send_sse(time_json, "time")
-
-        if motor_states is not None:
-            server.send_sse(motor_json, "states")
-
-        server.send_sse(controller.get_config(), "controller")
-
-        time.sleep(1)
+            await asyncio.sleep(1)
+    except asyncio.CancelledError:
+        pass
+    logger.info("Client disconnected")
 
 
-# Attach interrupt handlers
-# TIME_ADDER.irq(
-#     trigger=machine.Pin.IRQ_RISING, handler=lambda p: timerc.increase_current_time(p)
-# )
-# TIME_REDUCER.irq(
-#     trigger=machine.Pin.IRQ_RISING, handler=lambda p: timerc.decrease_current_time(p)
-# )
-
-# Add routes to the server
-server.add_route("/time", handle_time_change, ["POST"])
-server.add_route("/controller_config", handle_controller_config, ["GET", "PATCH"])
-server.add_route("/controller", handle_controller, ["POST"])
-server.add_route("/motors", handle_motor_change, ["POST"])
-server.add_route("/config", handle_saved_config, ["GET", "POST", "DELETE"])
-
-
-# Start the update function in a new thread
-_thread.start_new_thread(send_updates_to_server, (server,))
-
-server.start()
+app.run(port=80)

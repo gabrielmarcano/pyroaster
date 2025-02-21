@@ -1,4 +1,4 @@
-import utime
+import time
 
 
 class SimpleLogger:
@@ -6,7 +6,7 @@ class SimpleLogger:
         pass
 
     def log(self, message, level="INFO"):
-        timestamp = utime.localtime()
+        timestamp = time.localtime()
         print(f"[{timestamp[3]}:{timestamp[4]}:{timestamp[5]}] [{level}] {message}")
 
     def warning(self, message):

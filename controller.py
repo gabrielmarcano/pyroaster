@@ -1,6 +1,6 @@
-from timer_controller import TimerController
-from motor_controller import MotorController
-from sensor_controller import SensorController
+from lib.timer import TimerController
+from lib.motors import MotorController
+from lib.sensors import SensorController
 
 
 class Controller:

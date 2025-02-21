@@ -6,4 +6,4 @@ venv/
 
 # Configurations
 webrepl_cfg.py
-config.py
+env.py
