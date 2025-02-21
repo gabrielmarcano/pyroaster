@@ -64,6 +64,15 @@ class TimerController:
         """
         return self.__total_time, self.__current_time
 
+    def get_json(self):
+        """
+        Get time values in json format
+        """
+        return {
+            "total_time": self.__total_time,
+            "current_time": self.__current_time,
+        }
+
     def get_timer_status(self):
         """
         Get timer status

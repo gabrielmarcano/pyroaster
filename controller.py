@@ -16,12 +16,25 @@ class Controller:
         self.__is_active = False
 
     def activate(self):
+        """
+        Activate the controller
+        """
         self.__is_active = True
 
     def deactivate(self):
+        """
+        Deactivate the controller
+        """
         self.__is_active = False
 
     def run(self):
+        """
+        Run the controller logic.
+
+        This function is starts the timer and starts the motor "A" when the temperature reaches the starting temperature.
+
+        When the timer finishes, it starts the motor "B" and "C".
+        """
         if not self.__is_active:
             return
 
@@ -41,6 +54,9 @@ class Controller:
                 self.deactivate()
 
     def stop(self):
+        """
+        Emergency stop the controller. Also stops all motors and the timer
+        """
         self.__timer.stop_timer()
         self.__motor.stop_motor_a()
         self.__motor.stop_motor_b()
@@ -48,6 +64,9 @@ class Controller:
         self.deactivate()
 
     def get_config(self):
+        """
+        Get the configuration of the controller in json format
+        """
         return {
             "starting_temperature": self.__starting_temperature,
             "time": self.__time,
@@ -55,6 +74,9 @@ class Controller:
         }
 
     def set_config(self, starting_temperature, time):
+        """
+        Set the configuration of the controller and return current config
+        """
         self.__starting_temperature = (
             starting_temperature
             if starting_temperature is not None

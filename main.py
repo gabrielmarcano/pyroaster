@@ -92,11 +92,7 @@ async def change_time(request):
         time = data.get("time")
         timerc.set_timer_values(time)
 
-    time_values = (
-        timerc.get_time_values()
-    )  # TODO: change get_time_values to return json
-
-    return {"total_time": time_values[0], "current_time": time_values[1]}
+    return timerc.get_json()
 
 
 @app.route("/controller_config", methods=["GET", "PATCH"])
@@ -143,15 +139,7 @@ async def handle_motor_change(request):
         if motor_c is not None:
             motorc.start_motor_c() if motor_c else motorc.stop_motor_c()
 
-        motor_states = (
-            motorc.read_motor_states()
-        )  # TODO: change get_time_values to return json
-
-        return {
-            "motor_a": motor_states[0],
-            "motor_b": motor_states[1],
-            "motor_c": motor_states[2],
-        }
+        return motorc.get_json()
 
 
 @app.route("/config/<name>", methods=["GET", "POST", "DELETE"])
@@ -212,23 +200,19 @@ async def handle_events(request, sse):
     logger.info("Client connected")
     try:
         while True:
-            sensor_data = sensorc.read_sensor_data()
-            time_values = timerc.get_time_values()
-            motor_states = motorc.read_motor_states()
-            lcd.show_data(sensor_data[0], sensor_data[1], time_values[1])
+            sensor_data = sensorc.get_json()
+            time_values = timerc.get_json()
+            motor_states = motorc.get_json()
+            lcd.show_data(
+                sensor_data["temperature"],
+                sensor_data["humidity"],
+                time_values["current_time"],
+            )
             controller.run()
 
-            sensor_json = {"temperature": sensor_data[0], "humidity": sensor_data[1]}
-            time_json = {"total_time": time_values[0], "current_time": time_values[1]}
-            motor_json = {
-                "motor_a": motor_states[0],
-                "motor_b": motor_states[1],
-                "motor_c": motor_states[2],
-            }
-
-            await sse.send(sensor_json, event="sensors")
-            await sse.send(time_json, event="time")
-            await sse.send(motor_json, event="states")
+            await sse.send(sensor_data, event="sensors")
+            await sse.send(time_values, event="time")
+            await sse.send(motor_states, event="states")
             await sse.send(controller.get_config(), event="controller")
 
             await asyncio.sleep(1)
@@ -237,4 +221,4 @@ async def handle_events(request, sse):
     logger.info("Client disconnected")
 
 
-app.run(port=80)
+app.run(port=80, debug=True)
