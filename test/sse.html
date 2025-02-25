@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script defer src="script.js"></script>
+  <script defer src="sse.js"></script>
 </head>
 
 <body>
@@ -14,36 +14,5 @@
     <button type="button">Close...</button>
   </div>
 </body>
-
-<script>
-  var source = new EventSource('http://192.168.195.51/events');
-
-  source.addEventListener('message', function (message) {
-    console.log(message.data);
-  });
-
-  // source.addEventListener('error', function (message) {
-  //   console.error(message);
-  // });
-
-  source.addEventListener('sensors', function (message) {
-    console.log(JSON.parse(message.data).temperature);
-  });
-
-  // source.addEventListener('close', function (message) {
-  //   console.log(message);
-  // });
-
-  let button = document.querySelector('button');
-
-  if (button) {
-    button.addEventListener('click', function () {
-      console.log('closing connection');
-      source.close();
-    });
-  }
-
-  console.log('created connection');
-</script>
 
 </html>
