@@ -4,6 +4,7 @@ import machine
 import time
 
 from microdot import Microdot
+from microdot.cors import CORS
 from microdot.sse import with_sse
 import asyncio
 
@@ -78,9 +79,11 @@ except Exception as e:
 
 app = Microdot()
 
+cors = CORS(app, allowed_origins="*", allow_credentials=True)
+
 
 # Add routes to the server
-@app.route("/time", methods=["POST"])
+@app.post("/time")
 async def change_time(request):
     data = request.json
     action = data.get("action")
@@ -95,19 +98,19 @@ async def change_time(request):
     return timerc.get_json()
 
 
-@app.route("/controller_config", methods=["GET", "PATCH"])
+@app.get("/controller_config")
 async def handle_controller_config(request):
-    if request.method == "GET":
-        return controller.get_config()
-    elif request.method == "PATCH":
-        data = request.json
-        if data is not None:
-            return controller.set_config(
-                data.get("starting_temperature"), data.get("time")
-            )
+    return controller.get_config()
 
 
-@app.route("/controller", methods=["POST"])
+@app.patch("/controller_config")
+async def handle_controller_config(request):
+    data = request.json
+    if data is not None:
+        return controller.set_config(data.get("starting_temperature"), data.get("time"))
+
+
+@app.post("/controller")
 async def handle_controller(request):
     data = request.json
     if data is not None:
@@ -123,7 +126,7 @@ async def handle_controller(request):
         return controller.get_config()
 
 
-@app.route("/motors", methods=["POST"])
+@app.post("/motors")
 async def handle_motor_change(request):
     data = request.json
     if data is not None:
@@ -142,39 +145,24 @@ async def handle_motor_change(request):
         return motorc.get_json()
 
 
-@app.route("/config/<name>", methods=["GET", "POST", "DELETE"])
-async def handle_saved_config(request, name):
-    if request.method == "GET":
-        config_json = open("config.json", "r")
-        response = config_json.read()
-        config_json.close()
-        return response
+@app.get("/config")
+async def handle_saved_config(request):
+    config_json = open("config.json", "r")
+    response = config_json.read()
+    config_json.close()
+    return json.loads(response)
 
-    elif request.method == "POST":
-        data = request.json
-        if data is not None:
-            key = list(data.keys())
 
-            if key[0] not in ["cacao", "cafe", "mani"]:
-                config_json = open("config.json", "r")
-                config = json.loads(config_json.read())
-                config.update(data)
-                config_json.close()
-                # Start with an empty file
-                config_json = open("config.json", "w")
-                config_json.write(json.dumps(config))
-                config_json.close()
-                # Read new config
-                config_json = open("config.json", "r")
-                response = config_json.read()
-                config_json.close()
-                return response
+@app.post("/config")
+async def handle_saved_config(request):
+    data = request.json
+    if data is not None:
+        key = list(data.keys())
 
-    elif request.method == "DELETE":
-        if name is not None:
+        if key[0] not in ["cacao", "cafe", "mani"]:
             config_json = open("config.json", "r")
             config = json.loads(config_json.read())
-            config.pop(name)
+            config.update(data)
             config_json.close()
             # Start with an empty file
             config_json = open("config.json", "w")
@@ -184,17 +172,35 @@ async def handle_saved_config(request, name):
             config_json = open("config.json", "r")
             response = config_json.read()
             config_json.close()
-            return response
+            return json.loads(response)
 
 
-@app.route("/reset", methods=["POST"])
+@app.delete("/config/<name>")
+async def handle_saved_config(request, name):
+    if name is not None:
+        config_json = open("config.json", "r")
+        config = json.loads(config_json.read())
+        config.pop(name)
+        config_json.close()
+        # Start with an empty file
+        config_json = open("config.json", "w")
+        config_json.write(json.dumps(config))
+        config_json.close()
+        # Read new config
+        config_json = open("config.json", "r")
+        response = config_json.read()
+        config_json.close()
+        return json.loads(response)
+
+
+@app.post("/reset")
 async def handle_reset(request):
     logger.info("Rebooting...")
     time.sleep(3)
     machine.reset()
 
 
-@app.route("/events", methods=["GET"])
+@app.get("/events")
 @with_sse
 async def handle_events(request, sse):
     logger.info("Client connected")
