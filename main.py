@@ -99,12 +99,12 @@ async def change_time(request):
 
 
 @app.get("/controller_config")
-async def handle_controller_config(request):
+async def get_controller_config(request):
     return controller.get_config()
 
 
 @app.patch("/controller_config")
-async def handle_controller_config(request):
+async def change_controller_config(request):
     data = request.json
     if data is not None:
         return controller.set_config(data.get("starting_temperature"), data.get("time"))
@@ -127,7 +127,7 @@ async def handle_controller(request):
 
 
 @app.post("/motors")
-async def handle_motor_change(request):
+async def handle_motors(request):
     data = request.json
     if data is not None:
         motor_a = data.get("motor_a")
@@ -146,51 +146,44 @@ async def handle_motor_change(request):
 
 
 @app.get("/config")
-async def handle_saved_config(request):
-    config_json = open("config.json", "r")
-    response = config_json.read()
-    config_json.close()
-    return json.loads(response)
+async def get_saved_configs(request):
+    with open("config.json", "r") as config_file:
+        response = json.load(config_file)
+
+    return response
 
 
 @app.post("/config")
-async def handle_saved_config(request):
+async def save_new_config(request):
     data = request.json
     if data is not None:
-        key = list(data.keys())
+        with open("config.json", "r") as config_file:
+            config = json.load(config_file)
+            config.append(data)
 
-        if key[0] not in ["cacao", "cafe", "mani"]:
-            config_json = open("config.json", "r")
-            config = json.loads(config_json.read())
-            config.update(data)
-            config_json.close()
-            # Start with an empty file
-            config_json = open("config.json", "w")
-            config_json.write(json.dumps(config))
-            config_json.close()
-            # Read new config
-            config_json = open("config.json", "r")
-            response = config_json.read()
-            config_json.close()
-            return json.loads(response)
+        with open("config.json", "w") as config_file:
+            json.dump(config, config_file)
+
+        with open("config.json", "r") as config_file:
+            response = json.load(config_file)
+
+        return response
 
 
 @app.delete("/config/<name>")
-async def handle_saved_config(request, name):
+async def delete_saved_config(request, name):
     if name is not None:
-        config_json = open("config.json", "r")
-        config = json.loads(config_json.read())
-        config.pop(name)
-        config_json.close()
-        # Start with an empty file
-        config_json = open("config.json", "w")
-        config_json.write(json.dumps(config))
-        config_json.close()
-        # Read new config
-        config_json = open("config.json", "r")
-        response = config_json.read()
-        config_json.close()
-        return json.loads(response)
+        with open("config.json", "r") as config_file:
+            config = json.load(config_file)
+            config = [item for item in config if item["name"] != name]
+
+        with open("config.json", "w") as config_file:
+            json.dump(config, config_file)
+
+        with open("config.json", "r") as config_file:
+            response = json.load(config_file)
+
+        return response
 
 
 @app.post("/reset")
