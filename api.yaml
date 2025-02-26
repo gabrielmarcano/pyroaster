@@ -203,7 +203,7 @@ paths:
                   - $ref: '#/components/schemas/Sensors'
                   - $ref: '#/components/schemas/Time'
                   - $ref: '#/components/schemas/Motor'
-                  - $ref: '#/components/schemas/ControllerEvent'
+                  - $ref: '#/components/schemas/Controller'
   /reset:
     post:
       tags:
@@ -304,12 +304,4 @@ components:
             name:
               type: string
               example: mani
-        - $ref: '#/components/schemas/TemperatureTime'
-
-    ControllerEvent:
-      allOf:
-        - type: object
-          properties:
-            active:
-              type: boolean
         - $ref: '#/components/schemas/TemperatureTime'
