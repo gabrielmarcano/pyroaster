@@ -220,4 +220,7 @@ async def handle_events(request, sse):
     logger.info("Client disconnected")
 
 
-app.run(port=80, debug=True)
+try:
+    app.run(port=80, debug=True)
+except KeyboardInterrupt:
+    app.shutdown()
