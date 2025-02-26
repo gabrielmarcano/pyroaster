@@ -1,0 +1,315 @@
+openapi: 3.0.4
+info:
+  title: pyroaster API
+  version: 2.0.0
+servers:
+  - url: http://192.168.1.90:80
+tags:
+  - name: Time
+    description: Operations about controlling the timer
+  - name: Motors
+    description: Control the motors
+  - name: Controller
+    description: Manage the controller configuration
+  - name: Configurations
+    description: Access to saved configurations
+  - name: Events
+    description: Operations about Server-Sent Events
+  - name: Reset
+    description: Perform a wireless soft-reset call
+paths:
+  /time:
+    post:
+      tags:
+        - Time
+      summary: Change the time
+      description: Set a specific total time or simply add/reduce from the current time.
+      operationId: changeTime
+      requestBody:
+        description: Time object that changes the time. If the action is "change", then "time" is required
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [change, add, reduce]
+                time:
+                  type: integer
+                  description: Time in seconds
+                  example: 60
+              required: [action]
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Time'
+
+  /motors:
+    post:
+      tags:
+        - Motors
+      summary: Select the motor status configuration
+      description: Turn the motors on or off many at the time.
+      operationId: handleMotorStatus
+      requestBody:
+        description: Motor object with a binary configuration
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Motor'
+        required: true
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Motor'
+
+  /controller_config:
+    get:
+      tags:
+        - Controller
+      summary: Get the configuration of the controller
+      description: Find the current status, starting temperature and selected time of the controller.
+      operationId: getControllerConfig
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Controller'
+    patch:
+      tags:
+        - Controller
+      summary: Change the configuration of the controller
+      description: Change the selected time or the starting temperature.
+      operationId: changeControllerConfig
+      requestBody:
+        description: Object with the new starting temperature and time
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Controller'
+        required: false
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Controller'
+    post:
+      tags:
+        - Controller
+      summary: Control the status of the controller
+      description: Change the status of the controller by activating or deactiving. There's also a emergency stop which will stop everything.
+      operationId: handleControllerStatus
+      requestBody:
+        description: Selected action to perform
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControllerAction'
+        required: true
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Controller'
+
+  /config:
+    get:
+      tags:
+        - Configurations
+      summary: Find all saved configurations
+      description: Get all saved configurations as an array.
+      operationId: getSavedConfigurations
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Configuration'
+    post:
+      tags:
+        - Configurations
+      summary: Add a new configuration
+      description: 'Save a new configuration and returns all saved configurations'
+      operationId: updateSavedConfigurations
+      requestBody:
+        description: The properties of the new configuration
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Configuration'
+        required: true
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Configuration'
+  /config/{name}:
+    delete:
+      tags:
+        - Configurations
+      summary: Deletes a saved configuration
+      description: Deletes a configuration and returns the remaining saved configurations.
+      operationId: deleteSavedConfiguration
+      parameters:
+        - in: path
+          name: name
+          description: Name of the configuration to delete
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Returns the remaining configuration items.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Configuration'
+  /events:
+    get:
+      tags:
+        - Events
+      summary: Listen to the events stream
+      description: Start a new connection to the SSE stream, and get the information about sensors, motors, timer and controller every second.
+      operationId: startEventStreaming
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            text/event-stream:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/Sensors'
+                  - $ref: '#/components/schemas/Time'
+                  - $ref: '#/components/schemas/Motor'
+                  - $ref: '#/components/schemas/ControllerEvent'
+  /reset:
+    post:
+      tags:
+        - Reset
+      summary: Reset the microcontroller
+      description: Perform a soft-reset of the microcontroller from distance.
+      operationId: resetMicro
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+components:
+  schemas:
+    Sensors:
+      type: object
+      properties:
+        temperature:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          description: Temperature in celsius
+          example: 120
+        humidity:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Percentage of humidity
+          example: 80
+
+    Time:
+      type: object
+      properties:
+        total_time:
+          type: integer
+          example: 120
+        current_time:
+          type: integer
+          example: 80
+
+    Motor:
+      type: object
+      properties:
+        motor_a:
+          type: integer
+          enum: [0, 1]
+        motor_b:
+          type: integer
+          enum: [0, 1]
+        motor_c:
+          type: integer
+          enum: [0, 1]
+
+    TemperatureTime:
+      type: object
+      properties:
+        starting_temperature:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          description: Temperature in celsius
+          example: 120
+        time:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          description: Time in seconds
+          example: 60
+
+    Controller:
+      allOf:
+        - type: object
+          properties:
+            status:
+              type: string
+              readOnly: true
+              description: Controller status
+              example: off
+              enum: [on, off]
+        - $ref: '#/components/schemas/TemperatureTime'
+
+    ControllerAction:
+      type: object
+      properties:
+        action:
+          type: string
+          writeOnly: true
+          example: activate
+          enum: [activate, deactivate, stop]
+
+    Configuration:
+      allOf:
+        - type: object
+          properties:
+            name:
+              type: string
+              example: mani
+        - $ref: '#/components/schemas/TemperatureTime'
+
+    ControllerEvent:
+      allOf:
+        - type: object
+          properties:
+            active:
+              type: boolean
+        - $ref: '#/components/schemas/TemperatureTime'
