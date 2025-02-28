@@ -23,7 +23,8 @@ MAX_SCK = machine.Pin(5, machine.Pin.OUT)
 MAX_CS = machine.Pin(23, machine.Pin.OUT)
 MAX_SO = machine.Pin(19, machine.Pin.IN)
 
-DHT_PIN = machine.Pin(18)
+AHT_SDA = machine.Pin(12)
+AHT_SCL = machine.Pin(13)
 
 LCD_SDA = machine.Pin(21)
 LCD_SCL = machine.Pin(22)

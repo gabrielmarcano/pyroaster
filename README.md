@@ -25,7 +25,7 @@
 
 ## Summary
 
-All logic depends on the data given by the **Thermocouple (MAX6675)** & **DHT22** sensors. It's intention is to control 3 motors, which will turn on or off based on the temperature that it reaches.
+All logic depends on the data given by the **Thermocouple (MAX6675)** & **AHT20** sensors. It's intention is to control 3 motors, which will turn on or off based on the temperature that it reaches.
 
 When the temperature reaches the value set on the config, it feeds a relay that controls the first motor,
 and also starts a timer that was set on the config. Extra configs can be saved.
@@ -66,9 +66,11 @@ When the timer stops, a buzzer\* starts making noise and also feeds the other 2 
 
 ## Resources
 
-### DHT22
+### AHTx0
 
-MicroPython built-in dht library.
+MicroPython AHT20 driver library.
+
+https://github.com/targetblank/micropython_ahtx0
 
 ### MAX6675
 
