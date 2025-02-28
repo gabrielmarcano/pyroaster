@@ -163,6 +163,16 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Configuration'
+        '400':
+          description: Name already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Name already exists
   /config/{name}:
     delete:
       tags:

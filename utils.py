@@ -50,6 +50,40 @@ def play_melody(buzzer_pin):
     beeper.deinit()
 
 
+def decode(name):
+    if "+" in name:
+        name = name.replace("+", " ")
+
+    if "%20" in name:
+        name = name.replace("%20", " ")
+
+    if "%2F" in name:
+        name = name.replace("%2F", "/")
+
+    if "%3A" in name:
+        name = name.replace("%3A", ":")
+
+    if "%3D" in name:
+        name = name.replace("%3D", "=")
+
+    if "%3F" in name:
+        name = name.replace("%3F", "?")
+
+    if "%23" in name:
+        name = name.replace("%23", "#")
+
+    if "%26" in name:
+        name = name.replace("%26", "&")
+
+    if "%2B" in name:
+        name = name.replace("%2B", "+")
+
+    if "%25" in name:
+        name = name.replace("%25", "%")
+
+    return name
+
+
 def connect_to_network():
     """
     Connects to a wireless network using the given SSID and password

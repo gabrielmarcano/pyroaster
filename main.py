@@ -15,6 +15,7 @@ from lib.sensors import SensorController
 from controller import Controller
 
 from logger import SimpleLogger
+from utils import decode
 
 # Pins
 
@@ -159,6 +160,9 @@ async def save_new_config(request):
     if data is not None:
         with open("config.json", "r") as config_file:
             config = json.load(config_file)
+            data["name"] = decode(data["name"])
+            if data["name"] in [item["name"] for item in config]:
+                return {"error": "Name already exists"}, 400
             config.append(data)
 
         with open("config.json", "w") as config_file:
@@ -173,6 +177,7 @@ async def save_new_config(request):
 @app.delete("/config/<name>")
 async def delete_saved_config(request, name):
     if name is not None:
+        name = decode(name)
         with open("config.json", "r") as config_file:
             config = json.load(config_file)
             config = [item for item in config if item["name"] != name]
