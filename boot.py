@@ -2,7 +2,7 @@
 # import esp
 # esp.osdebug(None)
 import webrepl
-import utils
+from utils import connect_to_network
 
-utils.connect_to_network()
+connect_to_network()
 webrepl.start()

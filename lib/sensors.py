@@ -1,4 +1,4 @@
-from max6675 import MAX6675
+from drivers.max6675 import MAX6675
 import dht
 
 
@@ -12,20 +12,30 @@ class SensorController:
 
     def read_sensor_data(self):
         """
-        Read sensor data and return as a dictionary
+        Read sensor data individually and return as tuple
         """
         try:
             self.__dht.measure()
-            self.__temperature = int(self.__max.read())
             self.__humidity = int(self.__dht.humidity())
-
-            return self.__temperature, self.__humidity
         except Exception as e:
-            print(f"Failed to read sensor data:\n{e}")
-            return None
+            print(f"Failed to read DHT22 data:\n{e}")
+
+        try:
+            self.__temperature = int(self.__max.read())
+        except Exception as e:
+            print(f"Failed to read MAX6675 data:\n{e}")
+
+        return self.__temperature, self.__humidity
 
     def get_temperature(self):
         return self.__temperature
 
     def get_humidity(self):
         return self.__humidity
+
+    def get_json(self):
+        """
+        Get sensor data in json format
+        """
+        self.read_sensor_data()
+        return {"temperature": self.__temperature, "humidity": self.__humidity}

@@ -17,6 +17,17 @@ class MotorController:
         """
         return self.__motor_a.value(), self.__motor_b.value(), self.__motor_c.value()
 
+    def get_json(self):
+        """
+        Get the state of the motors in json format
+        """
+        # TODO: change read_motor_states to return boolean values
+        return {
+            "motor_a": self.__motor_a.value(),
+            "motor_b": self.__motor_b.value(),
+            "motor_c": self.__motor_c.value(),
+        }
+
     def start_motor_a(self):
         """
         Start motor A
