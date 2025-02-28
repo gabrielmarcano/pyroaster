@@ -4,7 +4,7 @@ from machine import SoftI2C
 
 
 class SensorController:
-    def __init__(self, AHT_SCL, AHT_SDA, MAX_SCK, MAX_CS, MAX_SO):
+    def __init__(self, AHT_SDA, AHT_SCL, MAX_SCK, MAX_CS, MAX_SO):
         self.__i2c = SoftI2C(sda=AHT_SDA, scl=AHT_SCL, freq=400000)
 
         self.__max = MAX6675(MAX_SCK, MAX_CS, MAX_SO)

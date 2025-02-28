@@ -65,7 +65,7 @@ except Exception as e:
     machine.reset()
 
 try:
-    sensorc = SensorController(DHT_PIN, MAX_SCK, MAX_CS, MAX_SO)
+    sensorc = SensorController(AHT_SDA, AHT_SCL, MAX_SCK, MAX_CS, MAX_SO)
 except Exception as e:
     logger.error(f"Failed to initialize the sensor controller:\n{e}\n")
     logger.info(f"Rebooting...")
