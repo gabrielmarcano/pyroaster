@@ -38,31 +38,24 @@ When the timer stops, a buzzer\* starts making noise and also feeds the other 2 
 
 ## Wiring
 
-| ESP-32 | MAX6675 | DHT22 | LCD i2C | R1  | R2  | R3  | I1 (+) | I2 (-) | SW1 | SW2 | SW3 | BUZZ |
-| ------ | ------- | ----- | ------- | --- | --- | --- | ------ | ------ | --- | --- | --- | ---- |
-| 3V3    |         |       |         |     |     |     |        |        |     |     |     |      |
-| GND    |         |       |         |     |     |     |        |        |     |     |     |      |
-| GPIO5  | SCK     |       |         |     |     |     |        |        |     |     |     |      |
-| GPIO12 |         |       |         |     |     |     | x      |        |     |     |     |      |
-| GPIO13 |         |       |         |     |     |     |        | x      |     |     |     |      |
-| GPIO14 |         |       |         |     |     |     |        |        |     |     |     | x    |
-| GPIO18 |         | x     |         |     |     |     |        |        |     |     |     |      |
-| GPIO19 | SO      |       |         |     |     |     |        |        |     |     |     |      |
-| GPIO21 |         |       | SDA     |     |     |     |        |        |     |     |     |      |
-| GPIO22 |         |       | SCL     |     |     |     |        |        |     |     |     |      |
-| GPIO23 | CS      |       |         |     |     |     |        |        |     |     |     |      |
-| GPIO25 |         |       |         | x   |     |     |        |        |     |     |     |      |
-| GPIO26 |         |       |         |     | x   |     |        |        |     |     |     |      |
-| GPIO27 |         |       |         |     |     | x   |        |        |     |     |     |      |
-| GPIO34 |         |       |         |     |     |     |        |        | x   |     |     |      |
-| GPIO35 |         |       |         |     |     |     |        |        |     | x   |     |      |
-| GPIO36 |         |       |         |     |     |     |        |        |     |     | x   |      |
+| ESP-32 | MAX6675 | AHT20 | LCD i2C | R1  | R2  | R3  | BUZZ |
+| ------ | ------- | ----- | ------- | --- | --- | --- | ---- |
+| 3V3    |         |       |         |     |     |     |      |
+| GND    |         |       |         |     |     |     |      |
+| GPIO5  | SCK     |       |         |     |     |     |      |
+| GPIO12 |         | SDA   |         |     |     |     |      |
+| GPIO13 |         | SCL   |         |     |     |     |      |
+| GPIO14 |         |       |         |     |     |     | x    |
+| GPIO18 |         |       |         |     |     |     |      |
+| GPIO19 | SO      |       |         |     |     |     |      |
+| GPIO21 |         |       | SDA     |     |     |     |      |
+| GPIO22 |         |       | SCL     |     |     |     |      |
+| GPIO23 | CS      |       |         |     |     |     |      |
+| GPIO25 |         |       |         | x   |     |     |      |
+| GPIO26 |         |       |         |     | x   |     |      |
+| GPIO27 |         |       |         |     |     | x   |      |
 
 > R: Relay\
-> I: Interrupt\
-> +: Adder push button\
-> -: Reducer push button\
-> SW: Switch
 
 ## Resources
 
@@ -84,4 +77,4 @@ https://github.com/dhylands/python_lcd
 
 ### Web Server
 
-I made my own module that supports [SSE](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) based on https://github.com/troublegum/micropyserver and this fork https://github.com/ferdinandog/micropyserver/tree/new-utils
+Uses the Microdot framework https://github.com/miguelgrinberg/microdot
