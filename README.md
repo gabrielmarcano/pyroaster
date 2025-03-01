@@ -38,24 +38,24 @@ When the timer stops, a buzzer\* starts making noise and also feeds the other 2 
 
 ## Wiring
 
-| ESP-32 | MAX6675 | AHT20 | LCD i2C | R1  | R2  | R3  | BUZZ |
-| ------ | ------- | ----- | ------- | --- | --- | --- | ---- |
-| 3V3    |         |       |         |     |     |     |      |
-| GND    |         |       |         |     |     |     |      |
-| GPIO5  | SCK     |       |         |     |     |     |      |
-| GPIO12 |         | SDA   |         |     |     |     |      |
-| GPIO13 |         | SCL   |         |     |     |     |      |
-| GPIO14 |         |       |         |     |     |     | x    |
-| GPIO18 |         |       |         |     |     |     |      |
-| GPIO19 | SO      |       |         |     |     |     |      |
-| GPIO21 |         |       | SDA     |     |     |     |      |
-| GPIO22 |         |       | SCL     |     |     |     |      |
-| GPIO23 | CS      |       |         |     |     |     |      |
-| GPIO25 |         |       |         | x   |     |     |      |
-| GPIO26 |         |       |         |     | x   |     |      |
-| GPIO27 |         |       |         |     |     | x   |      |
+| ESP-32 | MAX6675 | AHT20 i2C | LCD i2C | R1  | R2  | R3  | BUZZ |
+| ------ | ------- | --------- | ------- | --- | --- | --- | ---- |
+| 3V3    |         |           |         |     |     |     |      |
+| GND    |         |           |         |     |     |     |      |
+| GPIO5  | SCK     |           |         |     |     |     |      |
+| GPIO12 |         | SDA       |         |     |     |     |      |
+| GPIO13 |         | SCL       |         |     |     |     |      |
+| GPIO14 |         |           |         |     |     |     | x    |
+| GPIO18 |         |           |         |     |     |     |      |
+| GPIO19 | SO      |           |         |     |     |     |      |
+| GPIO21 |         |           | SDA     |     |     |     |      |
+| GPIO22 |         |           | SCL     |     |     |     |      |
+| GPIO23 | CS      |           |         |     |     |     |      |
+| GPIO25 |         |           |         | x   |     |     |      |
+| GPIO26 |         |           |         |     | x   |     |      |
+| GPIO27 |         |           |         |     |     | x   |      |
 
-> R: Relay\
+> R: Relay
 
 ## Resources
 
