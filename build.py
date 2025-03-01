@@ -32,10 +32,13 @@ while True:
 
 
 # Upload files
-commands = ["mpremote", "fs", "cp"]
 
-py_files = [f"{file.name}" for file in Path("out").glob("*.py")]
-subprocess.call(commands + py_files + [":"])
+response = input("Upload files? (y/n) ")
+if response == "y":
+    commands = ["mpremote", "fs", "cp"]
 
-mpy_dirs = [f"{dir}" for dir in Path("out").iterdir() if dir.is_dir()]
-subprocess.call(commands + ["-r"] + mpy_dirs + [":"])
+    py_files = [f"{file.name}" for file in Path("out").glob("*.py")]
+    subprocess.call(commands + py_files + [":"])
+
+    mpy_dirs = [f"{dir}" for dir in Path("out").iterdir() if dir.is_dir()]
+    subprocess.call(commands + ["-r"] + mpy_dirs + [":"])
