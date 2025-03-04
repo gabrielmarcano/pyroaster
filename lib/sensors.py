@@ -5,10 +5,20 @@ from machine import SoftI2C
 
 class SensorController:
     def __init__(self, AHT_SDA, AHT_SCL, MAX_SCK, MAX_CS, MAX_SO):
-        self.__i2c = SoftI2C(sda=AHT_SDA, scl=AHT_SCL, freq=400000)
+        try:
+            self.__i2c = SoftI2C(sda=AHT_SDA, scl=AHT_SCL, freq=400000)
+        except Exception as e:
+            print(f"Failed to initialize I2C:\n{e}")
 
-        self.__max = MAX6675(MAX_SCK, MAX_CS, MAX_SO)
-        self.__aht = AHT20(self.__i2c)
+        try:
+            self.__max = MAX6675(MAX_SCK, MAX_CS, MAX_SO)
+        except Exception as e:
+            print(f"Failed to initialize MAX6675:\n{e}")
+
+        try:
+            self.__aht = AHT20(self.__i2c)
+        except Exception as e:
+            print(f"Failed to initialize AHT20:\n{e}")
 
         self.__temperature = 0
         self.__humidity = 0

@@ -41,9 +41,9 @@ When the timer stops, a buzzer\* starts making noise and also feeds the other 2 
 | ESP-32 | MAX6675 | AHT20 i2C | LCD i2C | R1  | R2  | R3  | BUZZ |
 | ------ | ------- | --------- | ------- | --- | --- | --- | ---- |
 | GPIO5  | SCK     |           |         |     |     |     |      |
-| GPIO12 |         | SDA       |         |     |     |     |      |
-| GPIO13 |         | SCL       |         |     |     |     |      |
-| GPIO14 |         |           |         |     |     |     | x    |
+| GPIO12 |         | SCL       |         |     |     |     |      |
+| GPIO13 |         |           |         |     |     |     | x    |
+| GPIO14 |         | SDA       |         |     |     |     |      |
 | GPIO19 | SO      |           |         |     |     |     |      |
 | GPIO21 |         |           | SDA     |     |     |     |      |
 | GPIO22 |         |           | SCL     |     |     |     |      |

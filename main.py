@@ -23,8 +23,8 @@ MAX_SCK = machine.Pin(5, machine.Pin.OUT)
 MAX_CS = machine.Pin(23, machine.Pin.OUT)
 MAX_SO = machine.Pin(19, machine.Pin.IN)
 
-AHT_SDA = machine.Pin(12)
-AHT_SCL = machine.Pin(13)
+AHT_SDA = machine.Pin(14)
+AHT_SCL = machine.Pin(12)
 
 LCD_SDA = machine.Pin(21)
 LCD_SCL = machine.Pin(22)
@@ -33,7 +33,7 @@ MOTOR1_PIN = machine.Pin(25, machine.Pin.OUT, value=0)
 MOTOR2_PIN = machine.Pin(26, machine.Pin.OUT, value=0)
 MOTOR3_PIN = machine.Pin(27, machine.Pin.OUT, value=0)
 
-# BUZZER_PIN = machine.Pin(14, machine.Pin.OUT)
+# BUZZER_PIN = machine.Pin(13, machine.Pin.OUT)
 
 logger = SimpleLogger()
 
