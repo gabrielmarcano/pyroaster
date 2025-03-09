@@ -20,4 +20,3 @@ class SimpleLogger:
 
     def debug(self, message):
         self.log(message, "DEBUG")
-        self.log(message, "CRITICAL")
