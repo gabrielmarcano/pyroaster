@@ -7,25 +7,27 @@ class MotorController:
         self.__motor_b = motor_b
         self.__motor_c = motor_c
 
-        self.__motor_a_is_active = False
-        self.__motor_b_is_active = False
-        self.__motor_c_is_active = False
+        # TODO: change read_motor_states to return boolean values
+        self.__motor_a_is_active = 0
+        self.__motor_b_is_active = 0
+        self.__motor_c_is_active = 0
 
     def read_motor_states(self):
         """
-        Read the state of the motors
+        Read the state of the motors and update the internal state
         """
-        return self.__motor_a.value(), self.__motor_b.value(), self.__motor_c.value()
+        self.__motor_a_is_active = self.__motor_a.value()
+        self.__motor_b_is_active = self.__motor_b.value()
+        self.__motor_c_is_active = self.__motor_c.value()
 
     def get_json(self):
         """
         Get the state of the motors in json format
         """
-        # TODO: change read_motor_states to return boolean values
         return {
-            "motor_a": self.__motor_a.value(),
-            "motor_b": self.__motor_b.value(),
-            "motor_c": self.__motor_c.value(),
+            "motor_a": self.__motor_a_is_active,
+            "motor_b": self.__motor_b_is_active,
+            "motor_c": self.__motor_c_is_active,
         }
 
     def start_motor_a(self):

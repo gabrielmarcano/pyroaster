@@ -58,12 +58,6 @@ class TimerController:
         self.__timer_is_active = False
         self.reset_timer()
 
-    def get_time_values(self):
-        """
-        Get time values from the timer
-        """
-        return self.__total_time, self.__current_time
-
     def get_json(self):
         """
         Get time values in json format

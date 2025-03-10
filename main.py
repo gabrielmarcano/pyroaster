@@ -15,7 +15,7 @@ from lib.sensors import SensorController
 from controller import Controller
 
 from logger import SimpleLogger
-from utils import decode
+from utils import decode, format_time
 
 # Pins
 
@@ -35,52 +35,35 @@ MOTOR3_PIN = machine.Pin(27, machine.Pin.OUT, value=0)
 
 # BUZZER_PIN = machine.Pin(13, machine.Pin.OUT)
 
+# try:
+#     utils.play_melody(BUZZER_PIN)
+# except Exception as e:
+#     print(f"Failed to play melody:\n{e}\n")
+
 logger = SimpleLogger()
 
 try:
     lcd = LcdController(LCD_SDA, LCD_SCL)
     lcd.show_ip()
 except Exception as e:
-    logger.error(f"Failed to initialize LCD:\n{e}\n")
-    logger.info(f"Rebooting...")
-    machine.reset()
-
-# try:
-#     utils.play_melody(BUZZER_PIN)
-# except Exception as e:
-#     print(f"Failed to play melody:\n{e}\n")
-
-try:
-    timerc = TimerController()
-except Exception as e:
-    logger.error(f"Failed to initialize the timer controller:\n{e}\n")
-    logger.info(f"Rebooting...")
-    machine.reset()
-
-try:
-    motorc = MotorController(MOTOR1_PIN, MOTOR2_PIN, MOTOR3_PIN)
-except Exception as e:
-    logger.error(f"Failed to initialize motor controller:\n{e}\n")
-    logger.info(f"Rebooting...")
-    machine.reset()
+    logger.error(f"Failed to initialize LCD: {e}")
+    # Use a dummy LCD to prevent the program from crashing
+    lcd = type(
+        "DummyLCD",
+        (),
+        {"show_data": lambda temperature, humidity, time_in_seconds: None},
+    )
 
 try:
     sensorc = SensorController(AHT_SDA, AHT_SCL, MAX_SCK, MAX_CS, MAX_SO)
 except Exception as e:
-    logger.error(f"Failed to initialize the sensor controller:\n{e}\n")
-    logger.info(f"Rebooting...")
-    machine.reset()
+    logger.error(f"Failed to initialize sensors: {e}")
 
-try:
-    controller = Controller(sensorc, timerc, motorc)
-except Exception as e:
-    logger.error(f"Failed to initialize the logic controller:\n{e}\n")
-    logger.info(f"Rebooting...")
-    machine.reset()
-
+timerc = TimerController()
+motorc = MotorController(MOTOR1_PIN, MOTOR2_PIN, MOTOR3_PIN)
+controller = Controller(sensorc, timerc, motorc)
 
 app = Microdot()
-
 cors = CORS(app, allowed_origins="*", allow_credentials=True)
 
 
@@ -205,19 +188,14 @@ async def handle_events(request, sse):
     logger.info("Client connected")
     try:
         while True:
+            # TODO: Send only the data that has changed
             sensor_data = sensorc.get_json()
-            time_values = timerc.get_json()
-            motor_states = motorc.get_json()
-            lcd.show_data(
-                sensor_data["temperature"],
-                sensor_data["humidity"],
-                time_values["current_time"],
-            )
-            controller.run()
+            timer_data = timerc.get_json()
+            motor_data = motorc.get_json()
 
             await sse.send(sensor_data, event="sensors")
-            await sse.send(time_values, event="time")
-            await sse.send(motor_states, event="states")
+            await sse.send(timer_data, event="time")
+            await sse.send(motor_data, event="states")
             await sse.send(controller.get_config(), event="controller")
 
             await asyncio.sleep(1)
@@ -226,7 +204,44 @@ async def handle_events(request, sse):
     logger.info("Client disconnected")
 
 
-try:
-    app.run(port=80, debug=True)
-except KeyboardInterrupt:
-    app.shutdown()
+async def logic_loop():
+    while True:
+        sensorc.read_sensor_data()
+        motorc.read_motor_states()
+
+        sensor_data = sensorc.get_json()
+        timer_data = timerc.get_json()
+
+        # TODO: Send only the data that has changed
+        lcd.show_data(
+            sensor_data["temperature"],
+            sensor_data["humidity"],
+            timer_data["current_time"],
+        )
+
+        logger.debug(
+            "T: {}C H: {}%".format(
+                sensor_data["temperature"],
+                sensor_data["humidity"],
+            )
+        )
+        logger.debug(format_time(timer_data["current_time"]))
+
+        controller.run()
+        await asyncio.sleep(1)
+
+
+async def main():
+    try:
+        task_loop = asyncio.create_task(logic_loop())
+        await app.run(port=80, debug=True)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        logger.info("Shutting down...")
+        await app.shutdown()
+        task_loop.cancel()
+        await task_loop  # wait for the background task to cancel.
+        logger.info("Shutdown complete.")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
