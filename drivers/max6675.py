@@ -91,6 +91,8 @@ class MAX6675:
             # Read the TC Input pin to check if the input is open
             self._cycle_sck()
             self._error = self._so.value()
+            if self._error:
+                raise Exception("Thermocouple damaged or loosely connected")
 
             # Read the last two bits to complete protocol
             for i in range(2):
