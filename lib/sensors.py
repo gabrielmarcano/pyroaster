@@ -23,11 +23,18 @@ class SensorController:
 
     def read_sensor_data(self):
         """
-        Read sensor data individually and return as tuple
+        Read sensor data individually and return as tuple.
+        On failure, returns 0 for failed sensor (never stops).
         """
+        try:
+            self.__humidity = int(self.__aht.relative_humidity)
+        except Exception:
+            self.__humidity = 0
 
-        self.__humidity = int(self.__aht.relative_humidity)
-        self.__temperature = int(self.__max.read())
+        try:
+            self.__temperature = int(self.__max.read())
+        except Exception:
+            self.__temperature = 0
 
     def get_temperature(self):
         return self.__temperature

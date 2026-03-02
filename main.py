@@ -15,7 +15,7 @@ from lib.sensors import SensorController
 from controller import Controller
 
 from logger import SimpleLogger
-from utils import decode, format_time
+from utils import decode, format_time, wifi_manager_task
 
 # Pins
 
@@ -51,13 +51,26 @@ except Exception as e:
     lcd = type(
         "DummyLCD",
         (),
-        {"show_data": lambda temperature, humidity, time_in_seconds: None},
-    )
+        {
+            "show_data": lambda temperature, humidity, time_in_seconds: None,
+            "show_ip": lambda: None,
+        },
+    )()
 
 try:
     sensorc = SensorController(AHT_SDA, AHT_SCL, MAX_SCK, MAX_CS, MAX_SO)
 except Exception as e:
     logger.error(f"Failed to initialize sensors: {e}")
+    sensorc = type(
+        "DummySensor",
+        (),
+        {
+            "read_sensor_data": lambda: None,
+            "get_json": lambda: {"temperature": 0, "humidity": 0},
+            "get_temperature": lambda: 0,
+            "get_humidity": lambda: 0,
+        },
+    )()
 
 timerc = TimerController()
 motorc = MotorController(MOTOR1_PIN, MOTOR2_PIN, MOTOR3_PIN)
@@ -205,41 +218,60 @@ async def handle_events(request, sse):
 
 
 async def logic_loop():
+    """Core logic: sensor reads, motor control, LCD - runs always."""
     while True:
-        sensorc.read_sensor_data()
-        motorc.read_motor_states()
+        try:
+            sensorc.read_sensor_data()
+            motorc.read_motor_states()
 
-        sensor_data = sensorc.get_json()
-        timer_data = timerc.get_json()
+            sensor_data = sensorc.get_json()
+            timer_data = timerc.get_json()
 
-        # TODO: Send only the data that has changed
-        lcd.show_data(
-            sensor_data["temperature"],
-            sensor_data["humidity"],
-            timer_data["current_time"],
-        )
-
-        logger.debug(
-            "T: {}C H: {}%".format(
+            lcd.show_data(
                 sensor_data["temperature"],
                 sensor_data["humidity"],
+                timer_data["current_time"],
             )
-        )
-        logger.debug(format_time(timer_data["current_time"]))
 
-        controller.run()
+            logger.debug(
+                "T: {}C H: {}%".format(
+                    sensor_data["temperature"],
+                    sensor_data["humidity"],
+                )
+            )
+            logger.debug(format_time(timer_data["current_time"]))
+
+            controller.run()
+        except Exception as e:
+            logger.error(f"Logic loop error: {e}")
+
         await asyncio.sleep(1)
 
 
-async def main():
+async def server_task():
+    """Web server task - doesn't block if it fails."""
     try:
-        task_loop = asyncio.create_task(logic_loop())
         await app.run(port=80, debug=True)
+    except Exception as e:
+        logger.error(f"Web server error: {e}")
+        logger.info("Web server stopped, continuing without it...")
+
+
+async def main():
+    task_logic = asyncio.create_task(logic_loop())
+    task_wifi = asyncio.create_task(wifi_manager_task())
+    task_server = asyncio.create_task(server_task())
+
+    try:
+        await asyncio.gather(task_logic, task_wifi, task_server)
     except (KeyboardInterrupt, asyncio.CancelledError):
         logger.info("Shutting down...")
-        await app.shutdown()
-        task_loop.cancel()
-        await task_loop  # wait for the background task to cancel.
+        task_logic.cancel()
+        task_wifi.cancel()
+        task_server.cancel()
+        await task_logic
+        await task_wifi
+        await task_server
         logger.info("Shutdown complete.")
 
 

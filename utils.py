@@ -1,3 +1,6 @@
+WIFI_RETRY_INTERVAL = 15
+
+
 def format_time(seconds):
     """
     Formats time in hours, minutes and seconds
@@ -86,29 +89,64 @@ def decode(name):
 
 def connect_to_network():
     """
-    Connects to a wireless network using the given SSID and password
+    Starts WiFi connection in background - does NOT block.
+    Use start_wifi_manager() for async background reconnection.
     """
+    import network
+    from machine import Pin
+
+    internal_led = Pin(2, Pin.OUT, value=0)
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+
+    if wlan.isconnected():
+        print(f"Network already connected. IP: {wlan.ipconfig('addr4')}")
+        internal_led.on()
+        return True
+
     try:
         import env
-        import network
-        from machine import Pin
-
-        internal_led = Pin(2, Pin.OUT, value=0)
-
-        wlan = network.WLAN(network.STA_IF)
-        wlan.active(True)
-        if not wlan.isconnected():
-            print("Connecting to the network...")
-            wlan.connect(env.WIFI_SSID, env.WIFI_PASSWD)
-            while not wlan.isconnected():
-                pass
-        print(f"Network connected. IP config: {wlan.ipconfig("addr4")}")
-        internal_led.on()  # Turn on the built-in LED to indicate that the device is connected to the network
+        print("Starting WiFi connection in background...")
+        wlan.connect(env.WIFI_SSID, env.WIFI_PASSWD)
     except Exception as e:
-        import machine
-        import time
+        print(f"WiFi connection error: {e}")
+        return False
 
-        print("ERROR:", e)
-        print("Failed to connect to network. Rebooting...")
-        time.sleep(5)
-        machine.reset()
+    return True
+
+
+async def wifi_manager_task():
+    """
+    Background task that ensures WiFi stays connected.
+    Retries every WIFI_RETRY_INTERVAL seconds if disconnected.
+    """
+    import network
+    import asyncio
+    from machine import Pin
+
+    internal_led = Pin(2, Pin.OUT, value=0)
+
+    while True:
+        try:
+            wlan = network.WLAN(network.STA_IF)
+            if not wlan.isconnected():
+                print("WiFi disconnected, retrying connection...")
+                try:
+                    import env
+                    wlan.connect(env.WIFI_SSID, env.WIFI_PASSWD)
+                    for _ in range(30):
+                        await asyncio.sleep(1)
+                        if wlan.isconnected():
+                            break
+                except Exception as e:
+                    print(f"WiFi reconnection failed: {e}")
+
+            if wlan.isconnected():
+                internal_led.on()
+            else:
+                internal_led.off()
+
+        except Exception as e:
+            print(f"WiFi manager error: {e}")
+
+        await asyncio.sleep(WIFI_RETRY_INTERVAL)
