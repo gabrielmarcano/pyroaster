@@ -14,22 +14,32 @@ class TimerController:
 
         self.__htimer = Timer(0)  # Hardware timer
 
-    def increase_current_time(self, t):
+    def get_current_time(self):
+        return self.__current_time
+
+    def get_timer_counter(self):
+        return self.__timer_counter
+
+    def increase_current_time(self):
         """
         Increase the current time and total time by 1m to maintain percentage consistency
         """
         self.__current_time += 60
         self.__total_time += 60
 
-    def decrease_current_time(self, t):
+    def _tick(self, t):
         """
-        Decrease the current time by 1s if called from hardware timer or 1m if called from somewhere else
+        Hardware timer callback — decreases current time by 1s
         """
-        if t:
-            self.__current_time -= 1
-        else:
-            self.__current_time -= 60
+        self.__current_time -= 1
+        if self.__current_time <= 0:
+            self.__current_time = 0
 
+    def decrease_current_time(self):
+        """
+        Manual decrease — reduces current time by 60s
+        """
+        self.__current_time -= 60
         if self.__current_time <= 0:
             self.__current_time = 0
 
@@ -45,7 +55,7 @@ class TimerController:
         Start the timer
         """
         self.__htimer.init(
-            period=1000, mode=Timer.PERIODIC, callback=self.decrease_current_time
+            period=1000, mode=Timer.PERIODIC, callback=self._tick
         )
         self.__timer_is_active = True
         self.__timer_counter += 1

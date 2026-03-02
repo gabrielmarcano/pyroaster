@@ -1,7 +1,6 @@
+import gc
 import json
 import machine
-
-import time
 
 from microdot import Microdot
 from microdot.cors import CORS
@@ -44,7 +43,10 @@ logger = SimpleLogger()
 
 try:
     lcd = LcdController(LCD_SDA, LCD_SCL)
-    lcd.show_ip()
+    import network
+    wlan = network.WLAN(network.STA_IF)
+    if wlan.isconnected():
+        lcd.show_ip(wlan.ipconfig('addr4')[0])
 except Exception as e:
     logger.error(f"Failed to initialize LCD: {e}")
     # Use a dummy LCD to prevent the program from crashing
@@ -52,8 +54,8 @@ except Exception as e:
         "DummyLCD",
         (),
         {
-            "show_data": lambda temperature, humidity, time_in_seconds: None,
-            "show_ip": lambda: None,
+            "show_data": lambda self, temperature, humidity, time_in_seconds: None,
+            "show_ip": lambda self, ip_str: None,
         },
     )()
 
@@ -65,10 +67,11 @@ except Exception as e:
         "DummySensor",
         (),
         {
-            "read_sensor_data": lambda: None,
-            "get_json": lambda: {"temperature": 0, "humidity": 0},
-            "get_temperature": lambda: 0,
-            "get_humidity": lambda: 0,
+            "read_sensor_data": lambda self: None,
+            "get_json": lambda self: {"temperature": 0, "humidity": 0},
+            "get_temperature": lambda self: 0,
+            "get_humidity": lambda self: 0,
+            "has_error": lambda self: True,
         },
     )()
 
@@ -84,14 +87,19 @@ cors = CORS(app, allowed_origins="*", allow_credentials=True)
 @app.post("/time")
 async def change_time(request):
     data = request.json
+    if data is None:
+        return {"error": "Missing request body"}, 400
+
     action = data.get("action")
     if action == "add":
-        timerc.increase_current_time(None)
-    if action == "reduce":
-        timerc.decrease_current_time(None)
-    if action == "change":
-        time = data.get("time")
-        timerc.set_timer_values(time)
+        timerc.increase_current_time()
+    elif action == "reduce":
+        timerc.decrease_current_time()
+    elif action == "change":
+        t = data.get("time")
+        if not isinstance(t, int) or t < 0:
+            return {"error": "time must be a non-negative integer"}, 400
+        timerc.set_timer_values(t)
 
     return timerc.get_json()
 
@@ -104,94 +112,117 @@ async def get_controller_config(request):
 @app.patch("/controller_config")
 async def change_controller_config(request):
     data = request.json
-    if data is not None:
-        return controller.set_config(data.get("starting_temperature"), data.get("time"))
+    if data is None:
+        return {"error": "Missing request body"}, 400
+
+    t = data.get("time")
+    if t is not None and (not isinstance(t, int) or t < 0):
+        return {"error": "time must be a non-negative integer"}, 400
+
+    return controller.set_config(data.get("starting_temperature"), t)
 
 
 @app.post("/controller")
 async def handle_controller(request):
     data = request.json
-    if data is not None:
-        action = data.get("action")
+    if data is None:
+        return {"error": "Missing request body"}, 400
 
-        if action == "activate":
-            controller.activate()
-        if action == "deactivate":
-            controller.deactivate()
-        if action == "stop":
-            controller.stop()
+    action = data.get("action")
+    if action == "activate":
+        controller.activate()
+    elif action == "deactivate":
+        controller.deactivate()
+    elif action == "stop":
+        controller.stop()
 
-        return controller.get_config()
+    return controller.get_config()
 
 
 @app.post("/motors")
 async def handle_motors(request):
     data = request.json
-    if data is not None:
-        motor_a = data.get("motor_a")
-        if motor_a is not None:
-            motorc.start_motor_a() if motor_a else motorc.stop_motor_a()
+    if data is None:
+        return {"error": "Missing request body"}, 400
 
-        motor_b = data.get("motor_b")
-        if motor_b is not None:
-            motorc.start_motor_b() if motor_b else motorc.stop_motor_b()
+    motor_a = data.get("motor_a")
+    if motor_a is not None:
+        motorc.start_motor_a() if motor_a else motorc.stop_motor_a()
 
-        motor_c = data.get("motor_c")
-        if motor_c is not None:
-            motorc.start_motor_c() if motor_c else motorc.stop_motor_c()
+    motor_b = data.get("motor_b")
+    if motor_b is not None:
+        motorc.start_motor_b() if motor_b else motorc.stop_motor_b()
 
-        return motorc.get_json()
+    motor_c = data.get("motor_c")
+    if motor_c is not None:
+        motorc.start_motor_c() if motor_c else motorc.stop_motor_c()
+
+    return motorc.get_json()
 
 
 @app.get("/config")
 async def get_saved_configs(request):
-    with open("config.json", "r") as config_file:
-        response = json.load(config_file)
-
-    return response
+    try:
+        with open("config.json", "r") as config_file:
+            return json.load(config_file)
+    except (OSError, ValueError):
+        return {"error": "Failed to read config file"}, 500
 
 
 @app.post("/config")
 async def save_new_config(request):
     data = request.json
-    if data is not None:
+    if data is None:
+        return {"error": "Missing request body"}, 400
+
+    try:
         with open("config.json", "r") as config_file:
             config = json.load(config_file)
-            data["name"] = decode(data["name"])
-            if data["name"] in [item["name"] for item in config]:
-                return {"error": "Name already exists"}, 400
-            config.append(data)
+    except (OSError, ValueError):
+        return {"error": "Failed to read config file"}, 500
 
+    data["name"] = decode(data["name"])
+    if data["name"] in [item["name"] for item in config]:
+        return {"error": "Name already exists"}, 400
+    config.append(data)
+
+    try:
         with open("config.json", "w") as config_file:
             json.dump(config, config_file)
+    except OSError:
+        return {"error": "Failed to write config file"}, 500
 
-        with open("config.json", "r") as config_file:
-            response = json.load(config_file)
-
-        return response
+    return config
 
 
 @app.delete("/config/<name>")
 async def delete_saved_config(request, name):
-    if name is not None:
-        name = decode(name)
+    if name is None:
+        return {"error": "Missing name"}, 400
+
+    name = decode(name)
+
+    try:
         with open("config.json", "r") as config_file:
             config = json.load(config_file)
-            config = [item for item in config if item["name"] != name]
+    except (OSError, ValueError):
+        return {"error": "Failed to read config file"}, 500
 
+    config = [item for item in config if item["name"] != name]
+
+    try:
         with open("config.json", "w") as config_file:
             json.dump(config, config_file)
+    except OSError:
+        return {"error": "Failed to write config file"}, 500
 
-        with open("config.json", "r") as config_file:
-            response = json.load(config_file)
-
-        return response
+    return config
 
 
 @app.post("/reset")
 async def handle_reset(request):
     logger.info("Rebooting...")
-    time.sleep(3)
+    await asyncio.sleep(3)
     machine.reset()
 
 
@@ -199,17 +230,32 @@ async def handle_reset(request):
 @with_sse
 async def handle_events(request, sse):
     logger.info("Client connected")
+    last_sensor = None
+    last_timer = None
+    last_motor = None
+    last_controller = None
     try:
         while True:
-            # TODO: Send only the data that has changed
             sensor_data = sensorc.get_json()
             timer_data = timerc.get_json()
             motor_data = motorc.get_json()
+            controller_data = controller.get_config()
 
-            await sse.send(sensor_data, event="sensors")
-            await sse.send(timer_data, event="time")
-            await sse.send(motor_data, event="states")
-            await sse.send(controller.get_config(), event="controller")
+            if sensor_data != last_sensor:
+                await sse.send(sensor_data, event="sensors")
+                last_sensor = sensor_data
+
+            if timer_data != last_timer:
+                await sse.send(timer_data, event="time")
+                last_timer = timer_data
+
+            if motor_data != last_motor:
+                await sse.send(motor_data, event="states")
+                last_motor = motor_data
+
+            if controller_data != last_controller:
+                await sse.send(controller_data, event="controller")
+                last_controller = controller_data
 
             await asyncio.sleep(1)
     except asyncio.CancelledError:
@@ -245,6 +291,7 @@ async def logic_loop():
         except Exception as e:
             logger.error(f"Logic loop error: {e}")
 
+        gc.collect()
         await asyncio.sleep(1)
 
 
@@ -259,7 +306,7 @@ async def server_task():
 
 async def main():
     task_logic = asyncio.create_task(logic_loop())
-    task_wifi = asyncio.create_task(wifi_manager_task())
+    task_wifi = asyncio.create_task(wifi_manager_task(on_connect=lcd.show_ip))
     task_server = asyncio.create_task(server_task())
 
     try:

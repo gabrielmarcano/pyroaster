@@ -39,19 +39,15 @@ class Controller:
             return
 
         if not self.__timer.get_timer_status():
-            if self.__sensor.get_temperature() >= self.__starting_temperature:
+            if not self.__sensor.has_error() and self.__sensor.get_temperature() >= self.__starting_temperature:
                 self.__motor.start_motor_a()
                 self.__timer.set_timer_values(self.__time)
                 self.__timer.start_timer()
-
-        if (
-            self.__timer.__timer_counter > 0
-        ):  # Avoid running this block of code when the esp32 boots for the first time
-            if self.__timer.__current_time <= 0:
-                self.__timer.stop_timer()
-                self.__motor.start_motor_b()
-                self.__motor.start_motor_c()
-                self.deactivate()
+        elif self.__timer.get_timer_counter() > 0 and self.__timer.get_current_time() <= 0:
+            self.__timer.stop_timer()
+            self.__motor.start_motor_b()
+            self.__motor.start_motor_c()
+            self.deactivate()
 
     def stop(self):
         """

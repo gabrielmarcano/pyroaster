@@ -17,10 +17,13 @@
 ## Contents
 
 - [Summary](#summary)
-- [Project structure](#project-structure) (WIP)
-- [Hardware](#hardware) (WIP)
-- [Software](#software) (WIP)
-- [Wiring](#wiring) (WIP)
+- [How it works](#how-it-works)
+- [Project structure](#project-structure)
+- [Hardware](#hardware)
+- [Wiring](#wiring)
+- [Software](#software)
+- [Setup](#setup)
+- [API](#api)
 - [Resources](#resources)
 
 ## Summary
@@ -36,9 +39,77 @@ When the timer stops, a buzzer\* starts making noise and also feeds the other 2 
 
 > Motors can only be stopped manually by either the security button or through the app interface.
 
+## How it works
+
+The firmware runs three cooperative async tasks on a single core:
+
+1. **Logic loop** (1s interval) — reads sensors, runs the controller, updates the LCD
+2. **Web server** — HTTP REST API + Server-Sent Events (SSE) for real-time updates
+3. **WiFi manager** (15s interval) — monitors connection and reconnects automatically
+
+The logic loop runs independently from the network. If WiFi drops or the web server crashes, sensor reads, motor control, and LCD updates continue uninterrupted. When WiFi reconnects, the IP is shown on the LCD for 5 seconds.
+
+### Roasting flow
+
+1. User sets a **starting temperature** and **roast time** via the API or saved configs
+2. User activates the controller
+3. When the temperature reaches the threshold → **Motor A** starts and the **timer** begins counting down
+4. When the timer reaches zero → **Motors B & C** start, controller deactivates
+5. Motors can only be stopped manually (API or physical button)
+
+## Project structure
+
+```
+├── boot.py              # Runs on boot: starts WiFi + WebREPL
+├── main.py              # Entry point: async tasks, HTTP routes, pin setup
+├── controller.py        # Roasting controller (temp threshold → motor → timer logic)
+├── logger.py            # Simple timestamped logger (DEBUG/INFO/WARNING/ERROR)
+├── utils.py             # WiFi manager, time formatting, URL decoding
+├── config.json          # Saved roasting presets
+├── env.py               # WiFi credentials (not committed)
+├── env.template.py      # WiFi credentials template
+├── build.py             # Cross-compiles to .mpy and uploads via mpremote
+├── api.yaml             # OpenAPI spec
+│
+├── lib/
+│   ├── sensors.py       # MAX6675 + AHT20 sensor aggregation
+│   ├── motors.py        # 3 motor (relay) control
+│   ├── timer.py         # Hardware timer with countdown
+│   └── lcd.py           # 2x16 I2C LCD display
+│
+├── drivers/
+│   ├── max6675.py       # MAX6675 thermocouple SPI driver
+│   ├── ahtx0.py         # AHT20 humidity/temperature I2C driver
+│   ├── machine_i2c_lcd.py  # I2C LCD driver (PCF8574)
+│   └── lcd_api.py       # LCD API abstraction
+│
+├── microdot/            # Microdot web framework (vendored)
+│   ├── microdot.py
+│   ├── cors.py
+│   ├── sse.py
+│   └── helpers.py
+│
+├── test/
+│   ├── sse.html         # SSE test client
+│   └── sse.js
+│
+└── out/                 # Build output (compiled .mpy files)
+```
+
+## Hardware
+
+| Component | Description |
+|-----------|-------------|
+| ESP32 DevKit | Main microcontroller |
+| MAX6675 + K-type thermocouple | Temperature sensor (0-1024°C) |
+| AHT20 | Humidity & temperature sensor (I2C) |
+| 16x2 LCD + PCF8574 | I2C character display |
+| 3x Relay modules | Motor control (one per motor) |
+| Buzzer* | Audio alert when timer ends |
+
 ## Wiring
 
-| ESP-32 | MAX6675 | AHT20 i2C | LCD i2C | R1  | R2  | R3  | BUZZ |
+| ESP-32 | MAX6675 | AHT20 I2C | LCD I2C | R1  | R2  | R3  | BUZZ |
 | ------ | ------- | --------- | ------- | --- | --- | --- | ---- |
 | GPIO5  | SCK     |           |         |     |     |     |      |
 | GPIO13 |         |           |         |     |     |     | x    |
@@ -53,6 +124,61 @@ When the timer stops, a buzzer\* starts making noise and also feeds the other 2 
 | GPIO27 |         |           |         |     |     | x   |      |
 
 > R: Relay
+
+The two I2C buses use hardware peripherals: `I2C(0)` for the AHT20 sensor and `I2C(1)` for the LCD.
+
+## Software
+
+- **MicroPython** on ESP32
+- **Microdot** — lightweight async web framework for REST API and SSE
+- **mpy-cross** — cross-compiler for `.mpy` bytecode (faster load, less RAM)
+- **mpremote** — file transfer to the ESP32
+
+## Setup
+
+1. Flash MicroPython firmware to the ESP32
+
+2. Copy `env.template.py` to `env.py` and set your WiFi credentials:
+   ```python
+   WIFI_SSID = "your-ssid"
+   WIFI_PASSWD = "your-password"
+   ```
+
+3. Build and upload:
+   ```bash
+   python build.py
+   ```
+   This cross-compiles all library files to `.mpy`, copies everything to the `out/` directory, and prompts to upload via `mpremote`.
+
+4. The device boots, connects to WiFi, and starts the web server on port 80. The IP is shown on the LCD.
+
+## API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/events` | SSE stream (sensors, timer, motors, controller) |
+| `GET` | `/controller_config` | Get controller settings |
+| `PATCH` | `/controller_config` | Update starting temperature / time |
+| `POST` | `/controller` | Activate, deactivate, or stop the controller |
+| `POST` | `/time` | Add, reduce, or change the timer |
+| `POST` | `/motors` | Control individual motors (on/off) |
+| `GET` | `/config` | List saved roasting presets |
+| `POST` | `/config` | Save a new preset |
+| `DELETE` | `/config/<name>` | Delete a preset |
+| `POST` | `/reset` | Reboot the device |
+
+See `api.yaml` for the full OpenAPI specification.
+
+### SSE events
+
+The `/events` endpoint streams four event types:
+
+- **`sensors`** — `{"temperature": int, "humidity": int}`
+- **`time`** — `{"total_time": int, "current_time": int, "timer_active": bool}`
+- **`states`** — `{"motor_a": bool, "motor_b": bool, "motor_c": bool}`
+- **`controller`** — `{"active": bool, "starting_temperature": int, "time": int}`
+
+Events are only sent when data changes (change detection).
 
 ## Resources
 

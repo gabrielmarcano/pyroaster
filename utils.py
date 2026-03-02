@@ -54,36 +54,16 @@ def play_melody(buzzer_pin):
 
 
 def decode(name):
-    if "+" in name:
-        name = name.replace("+", " ")
-
-    if "%20" in name:
-        name = name.replace("%20", " ")
-
-    if "%2F" in name:
-        name = name.replace("%2F", "/")
-
-    if "%3A" in name:
-        name = name.replace("%3A", ":")
-
-    if "%3D" in name:
-        name = name.replace("%3D", "=")
-
-    if "%3F" in name:
-        name = name.replace("%3F", "?")
-
-    if "%23" in name:
-        name = name.replace("%23", "#")
-
-    if "%26" in name:
-        name = name.replace("%26", "&")
-
-    if "%2B" in name:
-        name = name.replace("%2B", "+")
-
-    if "%25" in name:
-        name = name.replace("%25", "%")
-
+    name = name.replace("+", " ")
+    name = name.replace("%20", " ")
+    name = name.replace("%2F", "/")
+    name = name.replace("%3A", ":")
+    name = name.replace("%3D", "=")
+    name = name.replace("%3F", "?")
+    name = name.replace("%23", "#")
+    name = name.replace("%26", "&")
+    name = name.replace("%2B", "+")
+    name = name.replace("%25", "%")
     return name
 
 
@@ -115,21 +95,24 @@ def connect_to_network():
     return True
 
 
-async def wifi_manager_task():
+async def wifi_manager_task(on_connect=None):
     """
     Background task that ensures WiFi stays connected.
     Retries every WIFI_RETRY_INTERVAL seconds if disconnected.
+    Calls on_connect(ip_str) when WiFi transitions from disconnected to connected.
     """
     import network
     import asyncio
     from machine import Pin
 
     internal_led = Pin(2, Pin.OUT, value=0)
+    wlan = network.WLAN(network.STA_IF)
+    was_connected = wlan.isconnected()
 
     while True:
         try:
-            wlan = network.WLAN(network.STA_IF)
             if not wlan.isconnected():
+                was_connected = False
                 print("WiFi disconnected, retrying connection...")
                 try:
                     import env
@@ -143,6 +126,12 @@ async def wifi_manager_task():
 
             if wlan.isconnected():
                 internal_led.on()
+                if not was_connected and on_connect:
+                    try:
+                        on_connect(wlan.ipconfig('addr4')[0])
+                    except Exception as e:
+                        print(f"on_connect callback error: {e}")
+                was_connected = True
             else:
                 internal_led.off()
 
