@@ -6,20 +6,38 @@ from machine import I2C
 _AHT_STATUS_BUSY = const(0x80)
 
 
+def _friendly_error(e):
+    s = str(e)
+    if "ENODEV" in s:
+        return "not connected (no device found on I2C bus)"
+    if "thermocouple" in s.lower() or "loosely" in s.lower():
+        return "not connected (no signal on data pin)"
+    return s
+
+
 class SensorController:
     def __init__(self, AHT_SDA, AHT_SCL, MAX_SCK, MAX_CS, MAX_SO):
 
         self.__i2c = I2C(0, sda=AHT_SDA, scl=AHT_SCL, freq=400000)
 
+        self.__max = None
+        self.__max_error = None
         try:
-            self.__max = MAX6675(MAX_SCK, MAX_CS, MAX_SO)
+            m = MAX6675(MAX_SCK, MAX_CS, MAX_SO)
+            m.refresh()
+            import time
+            time.sleep_ms(m.MEASUREMENT_PERIOD_MS + 50)
+            m.read()
+            self.__max = m
         except Exception as e:
-            raise RuntimeError(f"Failed to initialize MAX6675: {e}")
+            self.__max_error = _friendly_error(e)
 
+        self.__aht = None
+        self.__aht_error = None
         try:
             self.__aht = AHT20(self.__i2c)
         except Exception as e:
-            raise RuntimeError(f"Failed to initialize AHT20: {e}")
+            self.__aht_error = _friendly_error(e)
 
         self.__temperature = 0
         self.__humidity = 0
@@ -27,11 +45,21 @@ class SensorController:
         self.__aht_measurement_triggered = False
 
         # Trigger first AHT20 measurement immediately
-        try:
-            self.__aht._trigger_measurement()
-            self.__aht_measurement_triggered = True
-        except Exception:
-            pass
+        if self.__aht is not None:
+            try:
+                self.__aht._trigger_measurement()
+                self.__aht_measurement_triggered = True
+            except Exception:
+                pass
+
+    def status(self):
+        """Return (aht_ok, aht_error, max_ok, max_error) for startup reporting."""
+        return (
+            self.__aht is not None,
+            self.__aht_error,
+            self.__max is not None,
+            self.__max_error,
+        )
 
     def read_sensor_data(self):
         """
@@ -40,32 +68,34 @@ class SensorController:
         """
         error = False
 
-        try:
-            if not self.__aht_measurement_triggered:
-                self.__aht._trigger_measurement()
-                self.__aht_measurement_triggered = True
-            else:
-                # status property reads 6 bytes into _buf, including measurement data
-                status = self.__aht.status
-                if not (status & _AHT_STATUS_BUSY):
-                    # Compute humidity from buffer BEFORE triggering next measurement
-                    # (_trigger_measurement overwrites _buf[0:3])
-                    buf = self.__aht._buf
-                    raw = (buf[1] << 12) | (buf[2] << 4) | (buf[3] >> 4)
-                    self.__humidity = int((raw * 100) / 0x100000)
-                    # Trigger next measurement
+        if self.__aht is not None:
+            try:
+                if not self.__aht_measurement_triggered:
                     self.__aht._trigger_measurement()
-                # If busy, keep cached self.__humidity
-        except Exception:
-            self.__humidity = 0
-            self.__aht_measurement_triggered = False
-            error = True
+                    self.__aht_measurement_triggered = True
+                else:
+                    # status property reads 6 bytes into _buf, including measurement data
+                    status = self.__aht.status
+                    if not (status & _AHT_STATUS_BUSY):
+                        # Compute humidity from buffer BEFORE triggering next measurement
+                        # (_trigger_measurement overwrites _buf[0:3])
+                        buf = self.__aht._buf
+                        raw = (buf[1] << 12) | (buf[2] << 4) | (buf[3] >> 4)
+                        self.__humidity = int((raw * 100) / 0x100000)
+                        # Trigger next measurement
+                        self.__aht._trigger_measurement()
+                    # If busy, keep cached self.__humidity
+            except Exception:
+                self.__humidity = 0
+                self.__aht_measurement_triggered = False
+                error = True
 
-        try:
-            self.__temperature = int(self.__max.read())
-        except Exception:
-            self.__temperature = 0
-            error = True
+        if self.__max is not None:
+            try:
+                self.__temperature = int(self.__max.read())
+            except Exception:
+                self.__temperature = 0
+                error = True
 
         self.__has_error = error
 

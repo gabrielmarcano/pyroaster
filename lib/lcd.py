@@ -26,6 +26,7 @@ class LcdController:
         self.__last_line1 = None
         self.__ip_override = None
         self.__ip_override_until = 0
+        self.__error_logged = False
 
     def clear(self):
         self.__lcd.clear()
@@ -45,7 +46,9 @@ class LcdController:
             self.__lcd.putstr(self.__ip_override)
             self.__last_line1 = self.__ip_override
         except Exception as e:
-            print(f"Failed to write IP to LCD:\n{e}")
+            if not self.__error_logged:
+                print(f"LCD error: {e}")
+                self.__error_logged = True
 
     def show_data(self, temperature, humidity, time_in_seconds):
         """
@@ -73,6 +76,11 @@ class LcdController:
                 self.__lcd.move_to(0, 1)
                 self.__lcd.putstr(line1)
                 self.__last_line1 = line1
+
+            if self.__error_logged:
+                print("LCD reconnected")
+                self.__error_logged = False
         except Exception as e:
-            print(f"Failed to write to LCD:\n{e}")
-            return None
+            if not self.__error_logged:
+                print(f"LCD error: {e}")
+                self.__error_logged = True

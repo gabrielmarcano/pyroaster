@@ -14,13 +14,13 @@ from lib.sensors import SensorController
 from controller import Controller
 
 from logger import SimpleLogger
-from utils import decode, format_time, wifi_manager_task
+from utils import decode, format_time, wifi_manager_task, led_status_task
 
 # Pins
 
 MAX_SCK = machine.Pin(5, machine.Pin.OUT)
 MAX_CS = machine.Pin(23, machine.Pin.OUT)
-MAX_SO = machine.Pin(19, machine.Pin.IN)
+MAX_SO = machine.Pin(19, machine.Pin.IN, machine.Pin.PULL_UP)
 
 AHT_SDA = machine.Pin(17)
 AHT_SCL = machine.Pin(16)
@@ -41,15 +41,18 @@ MOTOR3_PIN = machine.Pin(27, machine.Pin.OUT, value=0)
 
 logger = SimpleLogger()
 
+lcd_ok = False
+lcd_err = None
 try:
     lcd = LcdController(LCD_SDA, LCD_SCL)
+    lcd_ok = True
     import network
     wlan = network.WLAN(network.STA_IF)
     if wlan.isconnected():
         lcd.show_ip(wlan.ipconfig('addr4')[0])
 except Exception as e:
-    logger.error(f"Failed to initialize LCD: {e}")
-    # Use a dummy LCD to prevent the program from crashing
+    lcd_err = "not connected (no device found on I2C bus)" if "ENODEV" in str(e) else str(e)
+    logger.error(f"Failed to initialize LCD: {lcd_err}")
     lcd = type(
         "DummyLCD",
         (),
@@ -59,25 +62,30 @@ except Exception as e:
         },
     )()
 
-try:
-    sensorc = SensorController(AHT_SDA, AHT_SCL, MAX_SCK, MAX_CS, MAX_SO)
-except Exception as e:
-    logger.error(f"Failed to initialize sensors: {e}")
-    sensorc = type(
-        "DummySensor",
-        (),
-        {
-            "read_sensor_data": lambda self: None,
-            "get_json": lambda self: {"temperature": 0, "humidity": 0},
-            "get_temperature": lambda self: 0,
-            "get_humidity": lambda self: 0,
-            "has_error": lambda self: True,
-        },
-    )()
-
+sensorc = SensorController(AHT_SDA, AHT_SCL, MAX_SCK, MAX_CS, MAX_SO)
 timerc = TimerController()
 motorc = MotorController(MOTOR1_PIN, MOTOR2_PIN, MOTOR3_PIN)
 controller = Controller(sensorc, timerc, motorc)
+
+# --- Startup status report ---
+aht_ok, aht_err, max_ok, max_err = sensorc.status()
+print("\n" + "=" * 40)
+print("  PYROASTER - Startup Status")
+print("=" * 40)
+print("  LCD      : {}".format("OK" if lcd_ok else "FAIL - " + str(lcd_err)))
+print("  AHT20    : {}".format("OK" if aht_ok else "FAIL - " + str(aht_err)))
+print("  MAX6675  : {}".format("OK" if max_ok else "FAIL - " + str(max_err)))
+print("  Motors   : configured (pins 25,26,27)")
+# LED blink code: highest priority error only (3=MAX, 2=AHT, 1=LCD, 0=all OK)
+error_blinks = 3 if not max_ok else 2 if not aht_ok else 1 if not lcd_ok else 0
+if error_blinks:
+    print("  LED      : {} blink(s) = {}".format(
+        error_blinks,
+        {1: "LCD error", 2: "AHT20 error", 3: "MAX6675 error"}[error_blinks],
+    ))
+else:
+    print("  LED      : WiFi indicator (off/on)")
+print("=" * 40 + "\n")
 
 app = Microdot()
 cors = CORS(app, allowed_origins="*", allow_credentials=True)
@@ -308,17 +316,20 @@ async def main():
     task_logic = asyncio.create_task(logic_loop())
     task_wifi = asyncio.create_task(wifi_manager_task(on_connect=lcd.show_ip))
     task_server = asyncio.create_task(server_task())
+    task_led = asyncio.create_task(led_status_task(error_blinks))
 
     try:
-        await asyncio.gather(task_logic, task_wifi, task_server)
+        await asyncio.gather(task_logic, task_wifi, task_server, task_led)
     except (KeyboardInterrupt, asyncio.CancelledError):
         logger.info("Shutting down...")
         task_logic.cancel()
         task_wifi.cancel()
         task_server.cancel()
+        task_led.cancel()
         await task_logic
         await task_wifi
         await task_server
+        await task_led
         logger.info("Shutdown complete.")
 
 

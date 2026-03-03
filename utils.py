@@ -73,15 +73,12 @@ def connect_to_network():
     Use start_wifi_manager() for async background reconnection.
     """
     import network
-    from machine import Pin
 
-    internal_led = Pin(2, Pin.OUT, value=0)
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
 
     if wlan.isconnected():
         print(f"Network already connected. IP: {wlan.ipconfig('addr4')}")
-        internal_led.on()
         return True
 
     try:
@@ -103,9 +100,7 @@ async def wifi_manager_task(on_connect=None):
     """
     import network
     import asyncio
-    from machine import Pin
 
-    internal_led = Pin(2, Pin.OUT, value=0)
     wlan = network.WLAN(network.STA_IF)
     was_connected = wlan.isconnected()
 
@@ -125,17 +120,40 @@ async def wifi_manager_task(on_connect=None):
                     print(f"WiFi reconnection failed: {e}")
 
             if wlan.isconnected():
-                internal_led.on()
                 if not was_connected and on_connect:
                     try:
                         on_connect(wlan.ipconfig('addr4')[0])
                     except Exception as e:
                         print(f"on_connect callback error: {e}")
                 was_connected = True
-            else:
-                internal_led.off()
 
         except Exception as e:
             print(f"WiFi manager error: {e}")
 
         await asyncio.sleep(WIFI_RETRY_INTERVAL)
+
+
+async def led_status_task(error_blinks):
+    """LED status indicator.
+
+    error_blinks=0: solid off (no WiFi) / solid on (WiFi connected)
+    error_blinks>0: blink N times, 3s pause, repeat
+    """
+    import network
+    import asyncio
+    from machine import Pin
+
+    led = Pin(2, Pin.OUT, value=0)
+    wlan = network.WLAN(network.STA_IF)
+
+    while True:
+        if error_blinks == 0:
+            led.value(1 if wlan.isconnected() else 0)
+            await asyncio.sleep(1)
+        else:
+            for _ in range(error_blinks):
+                led.on()
+                await asyncio.sleep(0.2)
+                led.off()
+                await asyncio.sleep(0.2)
+            await asyncio.sleep(3)
