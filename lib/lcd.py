@@ -5,6 +5,12 @@ from drivers.machine_i2c_lcd import I2cLcd
 from utils import format_time
 
 
+def _pad(s, width):
+    """ljust replacement for MicroPython (str.ljust is not available)."""
+    n = width - len(s)
+    return s + " " * n if n > 0 else s
+
+
 class LcdController:
     def __init__(self, LCD_SDA, LCD_SCL):
         self.__I2C_ADDR = 0x27
@@ -33,7 +39,7 @@ class LcdController:
         Non-blocking — the override expires automatically in show_data().
         """
         try:
-            self.__ip_override = ip_str.ljust(self.__I2C_NUM_COLS)
+            self.__ip_override = _pad(ip_str, self.__I2C_NUM_COLS)
             self.__ip_override_until = time.ticks_add(time.ticks_ms(), 5000)
             self.__lcd.move_to(0, 1)
             self.__lcd.putstr(self.__ip_override)
@@ -46,7 +52,7 @@ class LcdController:
         Write sensor data and time to the LCD
         """
         try:
-            line0 = f"T: {temperature}C H: {humidity}%".ljust(self.__I2C_NUM_COLS)
+            line0 = _pad(f"T: {temperature}C H: {humidity}%", self.__I2C_NUM_COLS)
 
             if self.__ip_override is not None:
                 if time.ticks_diff(self.__ip_override_until, time.ticks_ms()) > 0:
@@ -54,9 +60,9 @@ class LcdController:
                 else:
                     self.__ip_override = None
                     self.__last_line1 = None
-                    line1 = format_time(time_in_seconds).ljust(self.__I2C_NUM_COLS)
+                    line1 = _pad(format_time(time_in_seconds), self.__I2C_NUM_COLS)
             else:
-                line1 = format_time(time_in_seconds).ljust(self.__I2C_NUM_COLS)
+                line1 = _pad(format_time(time_in_seconds), self.__I2C_NUM_COLS)
 
             if line0 != self.__last_line0:
                 self.__lcd.move_to(0, 0)
