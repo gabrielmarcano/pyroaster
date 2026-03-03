@@ -69,25 +69,34 @@ def decode(name):
 
 def connect_to_network():
     """
-    Starts WiFi connection in background - does NOT block.
-    Use start_wifi_manager() for async background reconnection.
+    Starts WiFi STA + AP. STA connects to router, AP creates direct-connect network.
+    STA connection is non-blocking — use wifi_manager_task() for background reconnection.
     """
     import network
 
+    # --- STA mode (connect to router) ---
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
 
     if wlan.isconnected():
         print(f"Network already connected. IP: {wlan.ipconfig('addr4')}")
-        return True
+    else:
+        try:
+            import env
+            print("Starting WiFi connection in background...")
+            wlan.connect(env.WIFI_SSID, env.WIFI_PASSWD)
+        except Exception as e:
+            print(f"WiFi connection error: {e}")
 
+    # --- AP mode (direct connection) ---
     try:
         import env
-        print("Starting WiFi connection in background...")
-        wlan.connect(env.WIFI_SSID, env.WIFI_PASSWD)
+        ap = network.WLAN(network.AP_IF)
+        ap.active(True)
+        ap.config(essid=env.AP_SSID, password=env.AP_PASSWD, authmode=3)
+        print(f"AP started: {env.AP_SSID} (IP: {ap.ifconfig()[0]})")
     except Exception as e:
-        print(f"WiFi connection error: {e}")
-        return False
+        print(f"AP setup error: {e}")
 
     return True
 

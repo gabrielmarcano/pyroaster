@@ -47,9 +47,9 @@ try:
     lcd = LcdController(LCD_SDA, LCD_SCL)
     lcd_ok = True
     import network
-    wlan = network.WLAN(network.STA_IF)
-    if wlan.isconnected():
-        lcd.show_ip(wlan.ipconfig('addr4')[0])
+    ap = network.WLAN(network.AP_IF)
+    if ap.active():
+        lcd.show_ip(ap.ifconfig()[0])
 except Exception as e:
     lcd_err = "not connected (no device found on I2C bus)" if "ENODEV" in str(e) else str(e)
     logger.error(f"Failed to initialize LCD: {lcd_err}")
@@ -76,6 +76,9 @@ print("  LCD      : {}".format("OK" if lcd_ok else "FAIL - " + str(lcd_err)))
 print("  AHT20    : {}".format("OK" if aht_ok else "FAIL - " + str(aht_err)))
 print("  MAX6675  : {}".format("OK" if max_ok else "FAIL - " + str(max_err)))
 print("  Motors   : configured (pins 25,26,27)")
+import network
+_ap = network.WLAN(network.AP_IF)
+print("  AP       : {}".format(_ap.ifconfig()[0] if _ap.active() else "inactive"))
 # LED blink code: highest priority error only (3=MAX, 2=AHT, 1=LCD, 0=all OK)
 error_blinks = 3 if not max_ok else 2 if not aht_ok else 1 if not lcd_ok else 0
 if error_blinks:
