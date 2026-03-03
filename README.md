@@ -197,9 +197,9 @@ See `api.yaml` for the full OpenAPI specification.
 The `/events` endpoint streams four event types:
 
 - **`sensors`** — `{"temperature": int, "humidity": int}`
-- **`time`** — `{"total_time": int, "current_time": int, "timer_active": bool}`
+- **`time`** — `{"total_time": int, "current_time": int}`
 - **`states`** — `{"motor_a": bool, "motor_b": bool, "motor_c": bool}`
-- **`controller`** — `{"active": bool, "starting_temperature": int, "time": int}`
+- **`controller`** — `{"starting_temperature": int, "time": int, "status": "on"|"off"}`
 
 Events are only sent when data changes (change detection).
 

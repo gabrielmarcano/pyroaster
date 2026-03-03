@@ -14,7 +14,7 @@ from lib.sensors import SensorController
 from controller import Controller
 
 from logger import SimpleLogger
-from utils import decode, format_time, wifi_manager_task, led_status_task
+from utils import decode, format_time, validate_body, wifi_manager_task, led_status_task
 
 # Pins
 
@@ -95,14 +95,17 @@ async def change_time(request):
         return {"error": "Missing request body"}, 400
 
     action = data.get("action")
+    if action not in ("add", "reduce", "change"):
+        return {"error": "'action' must be one of ['add', 'reduce', 'change']"}, 400
+
     if action == "add":
         timerc.increase_current_time()
     elif action == "reduce":
         timerc.decrease_current_time()
     elif action == "change":
         t = data.get("time")
-        if not isinstance(t, int) or t < 0:
-            return {"error": "time must be a non-negative integer"}, 400
+        if not isinstance(t, int) or isinstance(t, bool) or t < 0:
+            return {"error": "'time' must be a non-negative integer"}, 400
         timerc.set_timer_values(t)
 
     return timerc.get_json()
@@ -119,11 +122,14 @@ async def change_controller_config(request):
     if data is None:
         return {"error": "Missing request body"}, 400
 
-    t = data.get("time")
-    if t is not None and (not isinstance(t, int) or t < 0):
-        return {"error": "time must be a non-negative integer"}, 400
+    err = validate_body(data, {
+        "starting_temperature": (int, False, {"min": 0}),
+        "time": (int, False, {"min": 0}),
+    })
+    if err:
+        return {"error": err}, 400
 
-    return controller.set_config(data.get("starting_temperature"), t)
+    return controller.set_config(data.get("starting_temperature"), data.get("time"))
 
 
 @app.post("/controller")
@@ -132,7 +138,13 @@ async def handle_controller(request):
     if data is None:
         return {"error": "Missing request body"}, 400
 
-    action = data.get("action")
+    err = validate_body(data, {
+        "action": (str, True, {"enum": ["activate", "deactivate", "stop"]}),
+    })
+    if err:
+        return {"error": err}, 400
+
+    action = data["action"]
     if action == "activate":
         controller.activate()
     elif action == "deactivate":
@@ -148,6 +160,14 @@ async def handle_motors(request):
     data = request.json
     if data is None:
         return {"error": "Missing request body"}, 400
+
+    err = validate_body(data, {
+        "motor_a": (bool, False, None),
+        "motor_b": (bool, False, None),
+        "motor_c": (bool, False, None),
+    })
+    if err:
+        return {"error": err}, 400
 
     motor_a = data.get("motor_a")
     if motor_a is not None:
@@ -179,16 +199,27 @@ async def save_new_config(request):
     if data is None:
         return {"error": "Missing request body"}, 400
 
+    err = validate_body(data, {
+        "name": (str, True, None),
+        "starting_temperature": (int, True, {"min": 0}),
+        "time": (int, True, {"min": 0}),
+    })
+    if err:
+        return {"error": err}, 400
+
     try:
         with open("config.json", "r") as config_file:
             config = json.load(config_file)
     except (OSError, ValueError):
         return {"error": "Failed to read config file"}, 500
 
-    data["name"] = decode(data["name"])
-    if data["name"] in [item["name"] for item in config]:
+    name = decode(data["name"])
+    if name in config:
         return {"error": "Name already exists"}, 400
-    config.append(data)
+    config[name] = {
+        "starting_temperature": data["starting_temperature"],
+        "time": data["time"],
+    }
 
     try:
         with open("config.json", "w") as config_file:
@@ -201,9 +232,6 @@ async def save_new_config(request):
 
 @app.delete("/config/<name>")
 async def delete_saved_config(request, name):
-    if name is None:
-        return {"error": "Missing name"}, 400
-
     name = decode(name)
 
     try:
@@ -212,7 +240,10 @@ async def delete_saved_config(request, name):
     except (OSError, ValueError):
         return {"error": "Failed to read config file"}, 500
 
-    config = [item for item in config if item["name"] != name]
+    if name not in config:
+        return {"error": "Config not found"}, 404
+
+    del config[name]
 
     try:
         with open("config.json", "w") as config_file:
@@ -225,9 +256,12 @@ async def delete_saved_config(request, name):
 
 @app.post("/reset")
 async def handle_reset(request):
+    async def delayed_reset():
+        await asyncio.sleep(1)
+        machine.reset()
     logger.info("Rebooting...")
-    await asyncio.sleep(3)
-    machine.reset()
+    asyncio.create_task(delayed_reset())
+    return {"message": "Rebooting..."}
 
 
 @app.get("/events")

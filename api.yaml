@@ -1,250 +1,344 @@
 openapi: 3.0.4
 info:
   title: pyroaster API
-  version: 2.0.0
+  version: 3.0.0
 servers:
-  - url: http://192.168.1.90:80
+  - url: http://192.168.1.90
+    description: STA (router network)
+  - url: http://192.168.4.1
+    description: AP (direct connection)
 tags:
   - name: Time
-    description: Operations about controlling the timer
+    description: Control the timer
   - name: Motors
     description: Control the motors
   - name: Controller
-    description: Manage the controller configuration
+    description: Manage the controller
   - name: Configurations
-    description: Access to saved configurations
+    description: Saved roasting presets
   - name: Events
-    description: Operations about Server-Sent Events
+    description: Server-Sent Events stream
   - name: Reset
-    description: Perform a wireless soft-reset call
+    description: Device reboot
+
 paths:
   /time:
     post:
-      tags:
-        - Time
-      summary: Change the time
-      description: Set a specific total time or simply add/reduce from the current time.
+      tags: [Time]
+      summary: Change the timer
       operationId: changeTime
       requestBody:
-        description: Time object that changes the time. If the action is "change", then "time" is required
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required: [action]
               properties:
                 action:
                   type: string
-                  enum: [change, add, reduce]
+                  enum: [add, reduce, change]
                 time:
                   type: integer
-                  description: Time in seconds
+                  minimum: 0
+                  description: Required when action is "change". Time in seconds.
                   example: 60
-              required: [action]
       responses:
         '200':
-          description: Successful operation
+          description: Updated timer state
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Time'
-
-  /motors:
-    post:
-      tags:
-        - Motors
-      summary: Select the motor status configuration
-      description: Turn the motors on or off many at the time.
-      operationId: handleMotorStatus
-      requestBody:
-        description: Motor object with a binary configuration
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Motor'
-        required: true
-      responses:
-        '200':
-          description: Successful operation
+        '400':
+          description: Invalid action or missing/invalid time
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Motor'
+                $ref: '#/components/schemas/Error'
 
   /controller_config:
     get:
-      tags:
-        - Controller
-      summary: Get the configuration of the controller
-      description: Find the current status, starting temperature and selected time of the controller.
+      tags: [Controller]
+      summary: Get controller configuration
       operationId: getControllerConfig
       responses:
         '200':
-          description: Successful operation
+          description: Current controller config
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Controller'
     patch:
-      tags:
-        - Controller
-      summary: Change the configuration of the controller
-      description: Change the selected time or the starting temperature.
+      tags: [Controller]
+      summary: Update controller configuration
       operationId: changeControllerConfig
       requestBody:
-        description: Object with the new starting temperature and time
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Controller'
-        required: false
+              type: object
+              properties:
+                starting_temperature:
+                  type: integer
+                  minimum: 0
+                  example: 190
+                time:
+                  type: integer
+                  minimum: 0
+                  example: 9000
       responses:
         '200':
-          description: Successful operation
+          description: Updated controller config
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Controller'
+        '400':
+          description: Invalid field type or value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /controller:
     post:
-      tags:
-        - Controller
-      summary: Control the status of the controller
-      description: Change the status of the controller by activating or deactiving. There's also a emergency stop which will stop everything.
+      tags: [Controller]
+      summary: Control the controller status
       operationId: handleControllerStatus
       requestBody:
-        description: Selected action to perform
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ControllerAction'
-        required: true
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [activate, deactivate, stop]
       responses:
         '200':
-          description: Successful operation
+          description: Updated controller config
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Controller'
+        '400':
+          description: Invalid action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /motors:
+    post:
+      tags: [Motors]
+      summary: Control individual motors
+      operationId: handleMotorStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                motor_a:
+                  type: boolean
+                  example: true
+                motor_b:
+                  type: boolean
+                  example: false
+                motor_c:
+                  type: boolean
+                  example: false
+      responses:
+        '200':
+          description: Current motor states
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Motor'
+        '400':
+          description: Invalid motor value (must be boolean)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /config:
     get:
-      tags:
-        - Configurations
-      summary: Find all saved configurations
-      description: Get all saved configurations as an array.
+      tags: [Configurations]
+      summary: Get all saved presets
       operationId: getSavedConfigurations
       responses:
         '200':
-          description: Successful operation
+          description: All saved presets as a dict keyed by name
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Configuration'
+                $ref: '#/components/schemas/ConfigMap'
+        '500':
+          description: Failed to read config file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     post:
-      tags:
-        - Configurations
-      summary: Add a new configuration
-      description: 'Save a new configuration and returns all saved configurations'
-      operationId: updateSavedConfigurations
+      tags: [Configurations]
+      summary: Save a new preset
+      operationId: createSavedConfiguration
       requestBody:
-        description: The properties of the new configuration
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Configuration'
-        required: true
+              type: object
+              required: [name, starting_temperature, time]
+              properties:
+                name:
+                  type: string
+                  example: cafe
+                starting_temperature:
+                  type: integer
+                  minimum: 0
+                  example: 190
+                time:
+                  type: integer
+                  minimum: 0
+                  example: 9000
       responses:
         '200':
-          description: Successful operation
+          description: Updated config map
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Configuration'
+                $ref: '#/components/schemas/ConfigMap'
         '400':
-          description: Name already exists
+          description: Validation error or name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Failed to read/write config file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /config/{name}:
+    delete:
+      tags: [Configurations]
+      summary: Delete a saved preset
+      operationId: deleteSavedConfiguration
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+          description: Name of the preset to delete
+      responses:
+        '200':
+          description: Updated config map
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigMap'
+        '404':
+          description: Config not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Failed to read/write config file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /events:
+    get:
+      tags: [Events]
+      summary: SSE event stream
+      description: >
+        Streams four event types when data changes.
+        Each event is a JSON object sent as an SSE message.
+      operationId: startEventStreaming
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: object
+                description: >
+                  Events: "sensors" (Sensors), "time" (Time),
+                  "states" (Motor), "controller" (Controller).
+                  Only sent when data changes from the previous value.
+              examples:
+                sensors:
+                  summary: sensors event
+                  value:
+                    temperature: 120
+                    humidity: 80
+                time:
+                  summary: time event
+                  value:
+                    total_time: 9000
+                    current_time: 4500
+                states:
+                  summary: states event
+                  value:
+                    motor_a: true
+                    motor_b: false
+                    motor_c: false
+                controller:
+                  summary: controller event
+                  value:
+                    starting_temperature: 190
+                    time: 9000
+                    status: "on"
+
+  /reset:
+    post:
+      tags: [Reset]
+      summary: Reboot the device
+      operationId: resetMicro
+      responses:
+        '200':
+          description: Reboot scheduled
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  error:
+                  message:
                     type: string
-                    example: Name already exists
-  /config/{name}:
-    delete:
-      tags:
-        - Configurations
-      summary: Deletes a saved configuration
-      description: Deletes a configuration and returns the remaining saved configurations.
-      operationId: deleteSavedConfiguration
-      parameters:
-        - in: path
-          name: name
-          description: Name of the configuration to delete
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Returns the remaining configuration items.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Configuration'
-  /events:
-    get:
-      tags:
-        - Events
-      summary: Listen to the events stream
-      description: Start a new connection to the SSE stream, and get the information about sensors, motors, timer and controller every second.
-      operationId: startEventStreaming
-      responses:
-        '200':
-          description: Successful operation
-          content:
-            text/event-stream:
-              schema:
-                anyOf:
-                  - $ref: '#/components/schemas/Sensors'
-                  - $ref: '#/components/schemas/Time'
-                  - $ref: '#/components/schemas/Motor'
-                  - $ref: '#/components/schemas/Controller'
-  /reset:
-    post:
-      tags:
-        - Reset
-      summary: Reset the microcontroller
-      description: Perform a soft-reset of the microcontroller from distance.
-      operationId: resetMicro
-      responses:
-        '200':
-          description: Successful operation
-          content:
-            text/plain:
-              schema:
-                type: string
-                example: OK
+                    example: Rebooting...
+
 components:
   schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "'field' is required"
+
     Sensors:
       type: object
       properties:
         temperature:
           type: integer
-          minimum: 0
-          exclusiveMinimum: true
           description: Temperature in celsius
           example: 120
         humidity:
           type: integer
-          minimum: 0
-          maximum: 100
-          description: Percentage of humidity
+          description: Humidity percentage
           example: 80
 
     Time:
@@ -252,66 +346,61 @@ components:
       properties:
         total_time:
           type: integer
-          example: 120
+          example: 9000
         current_time:
           type: integer
-          example: 80
+          example: 4500
 
     Motor:
       type: object
       properties:
         motor_a:
-          type: integer
-          enum: [0, 1]
+          type: boolean
+          example: true
         motor_b:
-          type: integer
-          enum: [0, 1]
+          type: boolean
+          example: false
         motor_c:
-          type: integer
-          enum: [0, 1]
+          type: boolean
+          example: false
 
-    TemperatureTime:
+    Controller:
       type: object
       properties:
         starting_temperature:
           type: integer
           minimum: 0
-          exclusiveMinimum: true
-          description: Temperature in celsius
-          example: 120
+          example: 190
         time:
           type: integer
           minimum: 0
-          exclusiveMinimum: true
-          description: Time in seconds
-          example: 60
+          example: 9000
+        status:
+          type: string
+          enum: [on, off]
+          readOnly: true
+          example: off
 
-    Controller:
-      allOf:
-        - type: object
-          properties:
-            status:
-              type: string
-              readOnly: true
-              description: Controller status
-              example: off
-              enum: [on, off]
-        - $ref: '#/components/schemas/TemperatureTime'
-
-    ControllerAction:
+    ConfigEntry:
       type: object
       properties:
-        action:
-          type: string
-          writeOnly: true
-          example: activate
-          enum: [activate, deactivate, stop]
+        starting_temperature:
+          type: integer
+          minimum: 0
+          example: 190
+        time:
+          type: integer
+          minimum: 0
+          example: 9000
 
-    Configuration:
-      allOf:
-        - type: object
-          properties:
-            name:
-              type: string
-              example: mani
-        - $ref: '#/components/schemas/TemperatureTime'
+    ConfigMap:
+      type: object
+      additionalProperties:
+        $ref: '#/components/schemas/ConfigEntry'
+      example:
+        cafe:
+          starting_temperature: 190
+          time: 9000
+        mani:
+          starting_temperature: 0
+          time: 0

@@ -1,6 +1,29 @@
 WIFI_RETRY_INTERVAL = 15
 
 
+def validate_body(data, rules):
+    """Validate request body fields.
+    rules: {field: (type, required, extra)}
+    extra: None or dict with "enum", "min", "max" keys.
+    Returns None on success, error string on failure."""
+    for field, (typ, required, extra) in rules.items():
+        val = data.get(field)
+        if val is None:
+            if required:
+                return f"'{field}' is required"
+            continue
+        if not isinstance(val, typ) or (typ is int and isinstance(val, bool)):
+            return f"'{field}' must be {typ.__name__}"
+        if extra:
+            if "enum" in extra and val not in extra["enum"]:
+                return f"'{field}' must be one of {extra['enum']}"
+            if "min" in extra and val < extra["min"]:
+                return f"'{field}' must be >= {extra['min']}"
+            if "max" in extra and val > extra["max"]:
+                return f"'{field}' must be <= {extra['max']}"
+    return None
+
+
 def format_time(seconds):
     """
     Formats time in hours, minutes and seconds

@@ -1,17 +1,14 @@
-[
-  {
-    "name": "cafe",
+{
+  "cafe": {
     "starting_temperature": 190,
     "time": 9000
   },
-  {
-    "name": "mani",
+  "mani": {
     "starting_temperature": 0,
     "time": 0
   },
-  {
-    "name": "cacao",
+  "cacao": {
     "starting_temperature": 0,
     "time": 0
   }
-]
+}

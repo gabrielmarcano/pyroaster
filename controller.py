@@ -73,10 +73,8 @@ class Controller:
         """
         Set the configuration of the controller and return current config
         """
-        self.__starting_temperature = (
-            starting_temperature
-            if starting_temperature is not None
-            else self.__starting_temperature
-        )
-        self.__time = time if time is not None else self.__time
+        if starting_temperature is not None:
+            self.__starting_temperature = starting_temperature
+        if time is not None:
+            self.__time = time
         return self.get_config()
