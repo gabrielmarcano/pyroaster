@@ -33,21 +33,43 @@ All logic depends on the data given by the **Thermocouple (MAX6675)** & **AHT20*
 When the temperature reaches the value set on the config, it feeds a relay that controls the first motor,
 and also starts a timer that was set on the config. Extra configs can be saved.
 
-There will be two push buttons, one will add +1min to the time (and start the timer if there isn't one already), and the other will reduce -1min to the time.
+When the timer stops, the other 2 relays feed the second & third motor.
 
-When the timer stops, a buzzer\* starts making noise and also feeds the other 2 relays that controls the second & third motor.
-
-> Motors can only be stopped manually by either the security button or through the app interface.
+> Motors can only be stopped manually through the app interface.
 
 ## How it works
 
-The firmware runs three cooperative async tasks on a single core:
+The firmware runs four cooperative async tasks on a single core:
 
 1. **Logic loop** (1s interval) — reads sensors, runs the controller, updates the LCD
 2. **Web server** — HTTP REST API + Server-Sent Events (SSE) for real-time updates
 3. **WiFi manager** (15s interval) — monitors connection and reconnects automatically
+4. **LED status** — blink codes for hardware errors, solid on/off for WiFi state
 
 The logic loop runs independently from the network. If WiFi drops or the web server crashes, sensor reads, motor control, and LCD updates continue uninterrupted. When WiFi reconnects, the IP is shown on the LCD for 5 seconds.
+
+### Networking
+
+The ESP32 runs in dual WiFi mode (STA + AP simultaneously):
+
+- **STA** — connects to your home router for network access
+- **AP** — creates a `PyRoaster-AP` network for direct connection (always available at `192.168.4.1`)
+
+This means the device is reachable even when the router signal is weak — just connect your phone directly to the AP network.
+
+### Startup diagnostics
+
+On boot, the firmware prints a status report for all hardware components and sets the built-in LED to indicate the highest priority error:
+
+| LED behavior | Meaning |
+|---|---|
+| Off | Everything OK, no WiFi |
+| Solid on | Everything OK, WiFi connected |
+| 1 blink, 3s pause | LCD not connected |
+| 2 blinks, 3s pause | AHT20 not connected |
+| 3 blinks, 3s pause | MAX6675 not connected |
+
+Individual sensor failures are graceful — if the MAX6675 is absent, AHT20 readings and LCD updates continue normally.
 
 ### Roasting flow
 
@@ -64,10 +86,10 @@ The logic loop runs independently from the network. If WiFi drops or the web ser
 ├── main.py              # Entry point: async tasks, HTTP routes, pin setup
 ├── controller.py        # Roasting controller (temp threshold → motor → timer logic)
 ├── logger.py            # Simple timestamped logger (DEBUG/INFO/WARNING/ERROR)
-├── utils.py             # WiFi manager, time formatting, URL decoding
+├── utils.py             # WiFi manager, LED status, time formatting, URL decoding
 ├── config.json          # Saved roasting presets
-├── env.py               # WiFi credentials (not committed)
-├── env.template.py      # WiFi credentials template
+├── env.py               # WiFi + AP credentials (not committed)
+├── env.template.py      # Credentials template
 ├── build.py             # Cross-compiles to .mpy and uploads via mpremote
 ├── api.yaml             # OpenAPI spec
 │
@@ -105,23 +127,22 @@ The logic loop runs independently from the network. If WiFi drops or the web ser
 | AHT20 | Humidity & temperature sensor (I2C) |
 | 16x2 LCD + PCF8574 | I2C character display |
 | 3x Relay modules | Motor control (one per motor) |
-| Buzzer* | Audio alert when timer ends |
 
 ## Wiring
 
-| ESP-32 | MAX6675 | AHT20 I2C | LCD I2C | R1  | R2  | R3  | BUZZ |
-| ------ | ------- | --------- | ------- | --- | --- | --- | ---- |
-| GPIO5  | SCK     |           |         |     |     |     |      |
-| GPIO13 |         |           |         |     |     |     | x    |
-| GPIO16 |         | SCL       |         |     |     |     |      |
-| GPIO17 |         | SDA       |         |     |     |     |      |
-| GPIO19 | SO      |           |         |     |     |     |      |
-| GPIO21 |         |           | SDA     |     |     |     |      |
-| GPIO22 |         |           | SCL     |     |     |     |      |
-| GPIO23 | CS      |           |         |     |     |     |      |
-| GPIO25 |         |           |         | x   |     |     |      |
-| GPIO26 |         |           |         |     | x   |     |      |
-| GPIO27 |         |           |         |     |     | x   |      |
+| ESP-32 | MAX6675 | AHT20 I2C | LCD I2C | R1  | R2  | R3  |
+| ------ | ------- | --------- | ------- | --- | --- | --- |
+| GPIO2  |         |           |         |     |     |     | (built-in LED)
+| GPIO5  | SCK     |           |         |     |     |     |
+| GPIO16 |         | SCL       |         |     |     |     |
+| GPIO17 |         | SDA       |         |     |     |     |
+| GPIO19 | SO      |           |         |     |     |     |
+| GPIO21 |         |           | SDA     |     |     |     |
+| GPIO22 |         |           | SCL     |     |     |     |
+| GPIO23 | CS      |           |         |     |     |     |
+| GPIO25 |         |           |         | x   |     |     |
+| GPIO26 |         |           |         |     | x   |     |
+| GPIO27 |         |           |         |     |     | x   |
 
 > R: Relay
 
@@ -138,10 +159,12 @@ The two I2C buses use hardware peripherals: `I2C(0)` for the AHT20 sensor and `I
 
 1. Flash MicroPython firmware to the ESP32
 
-2. Copy `env.template.py` to `env.py` and set your WiFi credentials:
+2. Copy `env.template.py` to `env.py` and set your credentials:
    ```python
    WIFI_SSID = "your-ssid"
    WIFI_PASSWD = "your-password"
+   AP_SSID = "PyRoaster-AP"
+   AP_PASSWD = "your-ap-password"
    ```
 
 3. Build and upload:
@@ -150,7 +173,7 @@ The two I2C buses use hardware peripherals: `I2C(0)` for the AHT20 sensor and `I
    ```
    This cross-compiles all library files to `.mpy`, copies everything to the `out/` directory, and prompts to upload via `mpremote`.
 
-4. The device boots, connects to WiFi, and starts the web server on port 80. The IP is shown on the LCD.
+4. The device boots, connects to WiFi, starts the AP network, and runs the web server on port 80. The AP IP (`192.168.4.1`) and router IP are shown on the LCD.
 
 ## API
 

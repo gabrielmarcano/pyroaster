@@ -32,13 +32,6 @@ MOTOR1_PIN = machine.Pin(25, machine.Pin.OUT, value=0)
 MOTOR2_PIN = machine.Pin(26, machine.Pin.OUT, value=0)
 MOTOR3_PIN = machine.Pin(27, machine.Pin.OUT, value=0)
 
-# BUZZER_PIN = machine.Pin(13, machine.Pin.OUT)
-
-# try:
-#     utils.play_melody(BUZZER_PIN)
-# except Exception as e:
-#     print(f"Failed to play melody:\n{e}\n")
-
 logger = SimpleLogger()
 
 lcd_ok = False

@@ -4,13 +4,14 @@ Low-level timing and resource details for the ESP32 MicroPython roaster firmware
 
 ## Async Architecture
 
-The firmware runs 3 cooperative async tasks on a single core:
+The firmware runs 4 cooperative async tasks on a single core:
 
 | Task | Purpose | Period |
 |------|---------|--------|
 | `logic_loop` | Sensor reads, motor control, LCD updates | 1s |
 | `server_task` | Microdot HTTP + SSE | Event-driven |
-| `wifi_manager_task` | Wi-Fi reconnection | 10s |
+| `wifi_manager_task` | Wi-Fi reconnection | 15s |
+| `led_status_task` | LED error blink codes / WiFi indicator | 0.2-3s |
 
 **Key rule**: Any blocking call in any task freezes *all* tasks. The event loop only yields at `await` points.
 
@@ -103,7 +104,7 @@ MicroPython uses **mark-and-sweep GC** (no generational collector). When the hea
 | `get_json()` dicts | New dict every call |
 | `json.dumps()` | String serialization |
 | f-strings in `show_data()` | Each `f"..."` allocates a new string |
-| `.ljust()` | New string if padding needed |
+| `_pad()` | New string if padding needed |
 | Logger format strings | Each `logger.debug(...)` call |
 
 ## SSE (Server-Sent Events)
@@ -118,5 +119,5 @@ MicroPython uses **mark-and-sweep GC** (no generational collector). When the hea
 - Strings are **immutable** — every concatenation allocates a new string
 - f-strings compile to concatenation: `f"T: {t}C"` creates multiple intermediate strings
 - `.format()` has the same allocation behavior
-- `.ljust()` returns a new string if padding is needed (same object if already the right length)
+- `_pad()` (custom `ljust` replacement) returns a new string if padding is needed
 - For hot paths, pre-allocated `bytearray` + `memoryview` would avoid allocations, but the current per-second rate doesn't justify the complexity
