@@ -35,7 +35,7 @@ MOTOR3_PIN = machine.Pin(27, machine.Pin.OUT, value=0)
 # --- Hardware enable flags (set False to disable a device for testing) ---
 # A disabled device is never initialized (its I2C bus / pins are left untouched)
 # and never triggers a fault LED -- useful to bring up one bus at a time.
-ENABLE_AHT = False  # disabled for bring-up test (AHT I2C bus has SDA stuck low)
+ENABLE_AHT = True
 ENABLE_MAX = True
 ENABLE_LCD = True
 
