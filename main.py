@@ -34,6 +34,14 @@ MOTOR3_PIN = machine.Pin(27, machine.Pin.OUT, value=0)
 
 logger = SimpleLogger()
 
+# Map machine.reset_cause() codes to names for startup diagnostics. Not every
+# build exposes every constant (e.g. BROWNOUT_RESET), so look them up defensively.
+_RESET_CAUSES = {}
+for _name in ("PWRON_RESET", "HARD_RESET", "WDT_RESET", "DEEPSLEEP_RESET", "SOFT_RESET", "BROWNOUT_RESET"):
+    _code = getattr(machine, _name, None)
+    if _code is not None:
+        _RESET_CAUSES[_code] = _name
+
 lcd_ok = False
 lcd_err = None
 try:
@@ -62,9 +70,11 @@ controller = Controller(sensorc, timerc, motorc)
 
 # --- Startup status report ---
 aht_ok, aht_err, max_ok, max_err = sensorc.status()
+_reset_cause = machine.reset_cause()
 print("\n" + "=" * 40)
 print("  PYROASTER - Startup Status")
 print("=" * 40)
+print("  Reset    : {} ({})".format(_RESET_CAUSES.get(_reset_cause, "UNKNOWN"), _reset_cause))
 print("  LCD      : {}".format("OK" if lcd_ok else "FAIL - " + str(lcd_err)))
 print("  AHT20    : {}".format("OK" if aht_ok else "FAIL - " + str(aht_err)))
 print("  MAX6675  : {}".format("OK" if max_ok else "FAIL - " + str(max_err)))
@@ -82,6 +92,24 @@ if error_blinks:
 else:
     print("  LED      : WiFi indicator (off/on)")
 print("=" * 40 + "\n")
+
+# A brownout or watchdog reset usually points to an unstable power supply (e.g.
+# WiFi TX / relay-coil current spikes sagging the rail), not a code bug. Surface
+# it so it's traceable even without a serial console at hand.
+if _RESET_CAUSES.get(_reset_cause) in ("BROWNOUT_RESET", "WDT_RESET"):
+    logger.warning("Unexpected reset cause: {} -- check power supply".format(_RESET_CAUSES[_reset_cause]))
+
+
+def current_error_blinks():
+    """Live LED blink code, re-evaluated each cycle by led_status_task.
+
+    Highest-priority error wins (3=MAX, 2=AHT, 1=LCD, 0=all OK). Sensor health is
+    read live so a transient glitch doesn't latch the fault light; lcd_ok stays
+    the boot-time value (no live LCD health probe exists).
+    """
+    aht_ok, max_ok = sensorc.health()
+    return 3 if not max_ok else 2 if not aht_ok else 1 if not lcd_ok else 0
+
 
 app = Microdot()
 cors = CORS(app, allowed_origins="*", allow_credentials=True)
@@ -346,7 +374,7 @@ async def main():
     task_logic = asyncio.create_task(logic_loop())
     task_wifi = asyncio.create_task(wifi_manager_task(on_connect=lcd.show_ip))
     task_server = asyncio.create_task(server_task())
-    task_led = asyncio.create_task(led_status_task(error_blinks))
+    task_led = asyncio.create_task(led_status_task(current_error_blinks))
 
     try:
         await asyncio.gather(task_logic, task_wifi, task_server, task_led)

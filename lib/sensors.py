@@ -42,6 +42,8 @@ class SensorController:
         self.__temperature = 0
         self.__humidity = 0
         self.__has_error = False
+        self.__aht_live_error = False
+        self.__max_live_error = False
         self.__aht_measurement_triggered = False
 
         # Trigger first AHT20 measurement immediately
@@ -85,22 +87,38 @@ class SensorController:
                         # Trigger next measurement
                         self.__aht._trigger_measurement()
                     # If busy, keep cached self.__humidity
+                self.__aht_live_error = False
             except Exception:
                 self.__humidity = 0
                 self.__aht_measurement_triggered = False
+                self.__aht_live_error = True
                 error = True
 
         if self.__max is not None:
             try:
                 self.__temperature = int(self.__max.read())
+                self.__max_live_error = False
             except Exception:
                 self.__temperature = 0
+                self.__max_live_error = True
                 error = True
 
         self.__has_error = error
 
     def has_error(self):
         return self.__has_error
+
+    def health(self):
+        """Live per-sensor health as (aht_ok, max_ok).
+
+        Reflects the *current* runtime state: a sensor is ok only if it
+        initialized and its last read did not error. Unlike status() (which is
+        a fixed boot-time snapshot), this recovers once a transient glitch
+        (e.g. EMI from relay/motor switching) clears.
+        """
+        aht_ok = self.__aht is not None and not self.__aht_live_error
+        max_ok = self.__max is not None and not self.__max_live_error
+        return (aht_ok, max_ok)
 
     def get_temperature(self):
         return self.__temperature
