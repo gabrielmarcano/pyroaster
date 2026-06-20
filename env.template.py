@@ -1,5 +1,2 @@
 AP_SSID = "PyRoaster-AP"
 AP_PASSWD = "pyroaster123"
-
-WIFI_SSID = "SSID"
-WIFI_PASSWD = "PASSWORD"

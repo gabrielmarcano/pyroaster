@@ -14,7 +14,7 @@ from lib.sensors import SensorController
 from controller import Controller
 
 from logger import SimpleLogger
-from utils import decode, format_time, validate_body, wifi_manager_task, led_status_task
+from utils import decode, format_time, validate_body, led_status_task
 
 # Pins
 
@@ -372,20 +372,17 @@ async def server_task():
 
 async def main():
     task_logic = asyncio.create_task(logic_loop())
-    task_wifi = asyncio.create_task(wifi_manager_task(on_connect=lcd.show_ip))
     task_server = asyncio.create_task(server_task())
     task_led = asyncio.create_task(led_status_task(current_error_blinks))
 
     try:
-        await asyncio.gather(task_logic, task_wifi, task_server, task_led)
+        await asyncio.gather(task_logic, task_server, task_led)
     except (KeyboardInterrupt, asyncio.CancelledError):
         logger.info("Shutting down...")
         task_logic.cancel()
-        task_wifi.cancel()
         task_server.cancel()
         task_led.cancel()
         await task_logic
-        await task_wifi
         await task_server
         await task_led
         logger.info("Shutdown complete.")

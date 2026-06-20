@@ -1,7 +1,3 @@
-WIFI_RETRY_INTERVAL = 15
-WIFI_RETRY_MAX = 120  # cap for exponential backoff when the router is unreachable
-
-
 def validate_body(data, rules):
     """Validate request body fields.
     rules: {field: (type, required, extra)}
@@ -52,28 +48,20 @@ def decode(name):
     return name
 
 
-def connect_to_network():
+def start_access_point():
     """
-    Starts WiFi STA + AP. STA connects to router, AP creates direct-connect network.
-    STA connection is non-blocking — use wifi_manager_task() for background reconnection.
+    Start WiFi in AP-only mode (direct connection at 192.168.4.1).
+
+    STA mode is intentionally disabled and forced off: the router isn't reachable
+    in production, and a STA stuck scanning destabilizes the AP since both share a
+    single radio. AP-only keeps the radio parked on the AP channel = stable.
     """
     import network
 
-    # --- STA mode (connect to router) ---
-    wlan = network.WLAN(network.STA_IF)
-    wlan.active(True)
+    # Force STA off so it never scans and steals the radio from the AP.
+    sta = network.WLAN(network.STA_IF)
+    sta.active(False)
 
-    if wlan.isconnected():
-        print(f"Network already connected. IP: {wlan.ipconfig('addr4')}")
-    else:
-        try:
-            import env
-            print("Starting WiFi connection in background...")
-            wlan.connect(env.WIFI_SSID, env.WIFI_PASSWD)
-        except Exception as e:
-            print(f"WiFi connection error: {e}")
-
-    # --- AP mode (direct connection) ---
     try:
         import env
         ap = network.WLAN(network.AP_IF)
@@ -86,61 +74,6 @@ def connect_to_network():
     return True
 
 
-async def wifi_manager_task(on_connect=None):
-    """
-    Keep the STA connection alive WITHOUT destabilizing the AP.
-
-    On the ESP32 the STA and AP share a single radio. A STA stuck retrying (router
-    out of range) makes the radio scan/channel-hop constantly, which drops AP
-    clients -- the AP is the priority here, so we keep STA retries gentle:
-
-    1. Never call connect() while the driver is already CONNECTING. Re-issuing it
-       there is exactly what raised "sta is connecting, cannot set config" /
-       "Wifi Internal State Error", and it keeps the radio busy.
-    2. Back off exponentially (up to WIFI_RETRY_MAX) when the router can't be
-       reached, so an unreachable router doesn't starve the AP of airtime.
-    Calls on_connect(ip_str) when WiFi transitions from disconnected to connected.
-    """
-    import network
-    import asyncio
-
-    wlan = network.WLAN(network.STA_IF)
-    was_connected = wlan.isconnected()
-    backoff = WIFI_RETRY_INTERVAL
-
-    while True:
-        try:
-            if wlan.isconnected():
-                if not was_connected:
-                    backoff = WIFI_RETRY_INTERVAL  # reset on success
-                    if on_connect:
-                        try:
-                            on_connect(wlan.ipconfig('addr4')[0])
-                        except Exception as e:
-                            print(f"on_connect callback error: {e}")
-                was_connected = True
-            else:
-                was_connected = False
-                status = wlan.status()
-                if status == network.STAT_CONNECTING:
-                    # Already trying -- leave it alone (touching it here is what
-                    # caused the error storm). Just wait and let the AP breathe.
-                    pass
-                else:
-                    print("WiFi not connected (status={}), reconnecting...".format(status))
-                    try:
-                        import env
-                        wlan.connect(env.WIFI_SSID, env.WIFI_PASSWD)
-                    except Exception as e:
-                        print(f"WiFi reconnection failed: {e}")
-                    backoff = min(backoff * 2, WIFI_RETRY_MAX)
-
-        except Exception as e:
-            print(f"WiFi manager error: {e}")
-
-        await asyncio.sleep(backoff)
-
-
 async def led_status_task(get_error_blinks):
     """LED status indicator.
 
@@ -149,7 +82,7 @@ async def led_status_task(get_error_blinks):
     transient sensor glitch at startup no longer pins the fault indication on
     forever -- the LED follows the sensors' real current state.
 
-    code == 0: solid off (no WiFi) / solid on (WiFi connected)
+    code == 0: solid on (AP up) / solid off (AP down)
     code  > 0: blink N times, 3s pause, repeat
     """
     import network
@@ -157,12 +90,12 @@ async def led_status_task(get_error_blinks):
     from machine import Pin
 
     led = Pin(2, Pin.OUT, value=0)
-    wlan = network.WLAN(network.STA_IF)
+    ap = network.WLAN(network.AP_IF)
 
     while True:
         error_blinks = get_error_blinks()
         if error_blinks == 0:
-            led.value(1 if wlan.isconnected() else 0)
+            led.value(1 if ap.active() else 0)
             await asyncio.sleep(1)
         else:
             for _ in range(error_blinks):

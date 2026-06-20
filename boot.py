@@ -1,6 +1,6 @@
 # This file is executed on every boot (including wake-boot from deepsleep)
 import webrepl
-from utils import connect_to_network
+from utils import start_access_point
 
-connect_to_network()
+start_access_point()
 webrepl.start()
