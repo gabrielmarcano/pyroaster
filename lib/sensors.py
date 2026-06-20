@@ -16,28 +16,36 @@ def _friendly_error(e):
 
 
 class SensorController:
-    def __init__(self, AHT_SDA, AHT_SCL, MAX_SCK, MAX_CS, MAX_SO):
+    def __init__(self, AHT_SDA, AHT_SCL, MAX_SCK, MAX_CS, MAX_SO,
+                 enable_aht=True, enable_max=True):
 
-        self.__i2c = I2C(0, sda=AHT_SDA, scl=AHT_SCL, freq=400000)
+        self.__aht_enabled = enable_aht
+        self.__max_enabled = enable_max
 
         self.__max = None
         self.__max_error = None
-        try:
-            m = MAX6675(MAX_SCK, MAX_CS, MAX_SO)
-            m.refresh()
-            import time
-            time.sleep_ms(m.MEASUREMENT_PERIOD_MS + 50)
-            m.read()
-            self.__max = m
-        except Exception as e:
-            self.__max_error = _friendly_error(e)
+        if enable_max:
+            try:
+                m = MAX6675(MAX_SCK, MAX_CS, MAX_SO)
+                m.refresh()
+                import time
+                time.sleep_ms(m.MEASUREMENT_PERIOD_MS + 50)
+                m.read()
+                self.__max = m
+            except Exception as e:
+                self.__max_error = _friendly_error(e)
 
+        # I2C(0) is only created when the AHT is enabled, so a faulty AHT bus
+        # (e.g. SDA stuck low) can be bypassed entirely in software.
+        self.__i2c = None
         self.__aht = None
         self.__aht_error = None
-        try:
-            self.__aht = AHT20(self.__i2c)
-        except Exception as e:
-            self.__aht_error = _friendly_error(e)
+        if enable_aht:
+            try:
+                self.__i2c = I2C(0, sda=AHT_SDA, scl=AHT_SCL, freq=400000)
+                self.__aht = AHT20(self.__i2c)
+            except Exception as e:
+                self.__aht_error = _friendly_error(e)
 
         self.__temperature = 0
         self.__humidity = 0
@@ -54,14 +62,19 @@ class SensorController:
             except Exception:
                 pass
 
-    def status(self):
-        """Return (aht_ok, aht_error, max_ok, max_error) for startup reporting."""
-        return (
-            self.__aht is not None,
-            self.__aht_error,
-            self.__max is not None,
-            self.__max_error,
-        )
+    def report(self):
+        """Per-device startup labels: (aht_label, aht_detail, max_label, max_detail).
+
+        label is 'OK' | 'FAIL' | 'DISABLED'; detail carries the error string on FAIL.
+        """
+        def lbl(enabled, obj, err):
+            if not enabled:
+                return ("DISABLED", None)
+            return ("OK", None) if obj is not None else ("FAIL", err)
+
+        a_lbl, a_det = lbl(self.__aht_enabled, self.__aht, self.__aht_error)
+        m_lbl, m_det = lbl(self.__max_enabled, self.__max, self.__max_error)
+        return (a_lbl, a_det, m_lbl, m_det)
 
     def read_sensor_data(self):
         """
@@ -111,13 +124,13 @@ class SensorController:
     def health(self):
         """Live per-sensor health as (aht_ok, max_ok).
 
-        Reflects the *current* runtime state: a sensor is ok only if it
-        initialized and its last read did not error. Unlike status() (which is
-        a fixed boot-time snapshot), this recovers once a transient glitch
-        (e.g. EMI from relay/motor switching) clears.
+        Reflects the *current* runtime state: an enabled sensor is ok only if it
+        initialized and its last read did not error. A disabled sensor counts as
+        ok (intentional, not a fault). Unlike report() (a fixed boot-time
+        snapshot), this recovers once a transient glitch clears.
         """
-        aht_ok = self.__aht is not None and not self.__aht_live_error
-        max_ok = self.__max is not None and not self.__max_live_error
+        aht_ok = (not self.__aht_enabled) or (self.__aht is not None and not self.__aht_live_error)
+        max_ok = (not self.__max_enabled) or (self.__max is not None and not self.__max_live_error)
         return (aht_ok, max_ok)
 
     def get_temperature(self):

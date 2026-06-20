@@ -32,6 +32,13 @@ MOTOR1_PIN = machine.Pin(25, machine.Pin.OUT, value=0)
 MOTOR2_PIN = machine.Pin(26, machine.Pin.OUT, value=0)
 MOTOR3_PIN = machine.Pin(27, machine.Pin.OUT, value=0)
 
+# --- Hardware enable flags (set False to disable a device for testing) ---
+# A disabled device is never initialized (its I2C bus / pins are left untouched)
+# and never triggers a fault LED -- useful to bring up one bus at a time.
+ENABLE_AHT = False  # disabled for bring-up test (AHT I2C bus has SDA stuck low)
+ENABLE_MAX = True
+ENABLE_LCD = True
+
 logger = SimpleLogger()
 
 # Map machine.reset_cause() codes to names for startup diagnostics. Not every
@@ -42,19 +49,8 @@ for _name in ("PWRON_RESET", "HARD_RESET", "WDT_RESET", "DEEPSLEEP_RESET", "SOFT
     if _code is not None:
         _RESET_CAUSES[_code] = _name
 
-lcd_ok = False
-lcd_err = None
-try:
-    lcd = LcdController(LCD_SDA, LCD_SCL)
-    lcd_ok = True
-    import network
-    ap = network.WLAN(network.AP_IF)
-    if ap.active():
-        lcd.show_ip(ap.ifconfig()[0])
-except Exception as e:
-    lcd_err = "not connected (no device found on I2C bus)" if "ENODEV" in str(e) else str(e)
-    logger.error(f"Failed to initialize LCD: {lcd_err}")
-    lcd = type(
+def _make_dummy_lcd():
+    return type(
         "DummyLCD",
         (),
         {
@@ -63,34 +59,57 @@ except Exception as e:
         },
     )()
 
-sensorc = SensorController(AHT_SDA, AHT_SCL, MAX_SCK, MAX_CS, MAX_SO)
+
+lcd_ok = False
+lcd_err = None
+if ENABLE_LCD:
+    try:
+        lcd = LcdController(LCD_SDA, LCD_SCL)
+        lcd_ok = True
+        import network
+        ap = network.WLAN(network.AP_IF)
+        if ap.active():
+            lcd.show_ip(ap.ifconfig()[0])
+    except Exception as e:
+        lcd_err = "not connected (no device found on I2C bus)" if "ENODEV" in str(e) else str(e)
+        logger.error(f"Failed to initialize LCD: {lcd_err}")
+        lcd = _make_dummy_lcd()
+else:
+    lcd = _make_dummy_lcd()
+
+sensorc = SensorController(AHT_SDA, AHT_SCL, MAX_SCK, MAX_CS, MAX_SO,
+                           enable_aht=ENABLE_AHT, enable_max=ENABLE_MAX)
 timerc = TimerController()
 motorc = MotorController(MOTOR1_PIN, MOTOR2_PIN, MOTOR3_PIN)
 controller = Controller(sensorc, timerc, motorc)
 
 # --- Startup status report ---
-aht_ok, aht_err, max_ok, max_err = sensorc.status()
+def _fmt(label, detail):
+    return label if detail is None else label + " - " + str(detail)
+
+aht_lbl, aht_det, max_lbl, max_det = sensorc.report()
+lcd_lbl = "DISABLED" if not ENABLE_LCD else ("OK" if lcd_ok else "FAIL - " + str(lcd_err))
 _reset_cause = machine.reset_cause()
 print("\n" + "=" * 40)
 print("  PYROASTER - Startup Status")
 print("=" * 40)
 print("  Reset    : {} ({})".format(_RESET_CAUSES.get(_reset_cause, "UNKNOWN"), _reset_cause))
-print("  LCD      : {}".format("OK" if lcd_ok else "FAIL - " + str(lcd_err)))
-print("  AHT20    : {}".format("OK" if aht_ok else "FAIL - " + str(aht_err)))
-print("  MAX6675  : {}".format("OK" if max_ok else "FAIL - " + str(max_err)))
+print("  LCD      : {}".format(lcd_lbl))
+print("  AHT20    : {}".format(_fmt(aht_lbl, aht_det)))
+print("  MAX6675  : {}".format(_fmt(max_lbl, max_det)))
 print("  Motors   : configured (pins 25,26,27)")
 import network
 _ap = network.WLAN(network.AP_IF)
 print("  AP       : {}".format(_ap.ifconfig()[0] if _ap.active() else "inactive"))
-# LED blink code: highest priority error only (3=MAX, 2=AHT, 1=LCD, 0=all OK)
-error_blinks = 3 if not max_ok else 2 if not aht_ok else 1 if not lcd_ok else 0
+# LED blink code: highest priority *enabled* error (3=MAX, 2=AHT, 1=LCD, 0=ok/disabled)
+error_blinks = 3 if max_lbl == "FAIL" else 2 if aht_lbl == "FAIL" else 1 if (ENABLE_LCD and not lcd_ok) else 0
 if error_blinks:
     print("  LED      : {} blink(s) = {}".format(
         error_blinks,
         {1: "LCD error", 2: "AHT20 error", 3: "MAX6675 error"}[error_blinks],
     ))
 else:
-    print("  LED      : WiFi indicator (off/on)")
+    print("  LED      : AP indicator (off/on)")
 print("=" * 40 + "\n")
 
 # A brownout or watchdog reset usually points to an unstable power supply (e.g.
@@ -104,11 +123,11 @@ def current_error_blinks():
     """Live LED blink code, re-evaluated each cycle by led_status_task.
 
     Highest-priority error wins (3=MAX, 2=AHT, 1=LCD, 0=all OK). Sensor health is
-    read live so a transient glitch doesn't latch the fault light; lcd_ok stays
-    the boot-time value (no live LCD health probe exists).
+    read live (disabled devices count as OK); lcd_ok stays the boot-time value
+    (no live LCD health probe exists).
     """
     aht_ok, max_ok = sensorc.health()
-    return 3 if not max_ok else 2 if not aht_ok else 1 if not lcd_ok else 0
+    return 3 if not max_ok else 2 if not aht_ok else 1 if (ENABLE_LCD and not lcd_ok) else 0
 
 
 app = Microdot()
