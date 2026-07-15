@@ -17,3 +17,6 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# Local-only: old code backup, not for commit
+viejo-backup/

@@ -284,7 +284,9 @@ paths:
                   summary: sensors event
                   value:
                     temperature: 120
-                    humidity: 80
+                    humidity: 55
+                    exhaust_temp: 20.2
+                    dew_point: 10.7
                 time:
                   summary: time event
                   value:
@@ -334,12 +336,23 @@ components:
       properties:
         temperature:
           type: integer
-          description: Temperature in celsius
+          description: Roast temperature in celsius (MAX6675 thermocouple)
           example: 120
         humidity:
           type: integer
-          description: Humidity percentage
-          example: 80
+          description: Relative humidity percentage at the sensor (SHT31)
+          example: 55
+        exhaust_temp:
+          type: number
+          description: Air temperature in celsius at the humidity sensor (SHT31)
+          example: 20.2
+        dew_point:
+          type: number
+          description: >
+            Dew point in celsius, derived from exhaust_temp + humidity. Unlike
+            relative humidity, dew point is temperature-independent, so it tracks
+            the actual moisture the exhaust air carries during the roast.
+          example: 10.7
 
     Time:
       type: object

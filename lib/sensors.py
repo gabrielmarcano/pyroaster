@@ -1,9 +1,7 @@
-from micropython import const
+from math import log
 from drivers.max6675 import MAX6675
-from drivers.ahtx0 import AHT20
+from drivers.sht31 import SHT31
 from machine import I2C
-
-_AHT_STATUS_BUSY = const(0x80)
 
 
 def _friendly_error(e):
@@ -12,14 +10,29 @@ def _friendly_error(e):
         return "not connected (no device found on I2C bus)"
     if "thermocouple" in s.lower() or "loosely" in s.lower():
         return "not connected (no signal on data pin)"
+    if "CRC" in s:
+        return "CRC error (marginal bus or bad module)"
     return s
 
 
-class SensorController:
-    def __init__(self, AHT_SDA, AHT_SCL, MAX_SCK, MAX_CS, MAX_SO,
-                 enable_aht=True, enable_max=True):
+def _dew_point(temp_c, rh):
+    """Magnus-formula dew point (C) from air temperature (C) and RH (%).
 
-        self.__aht_enabled = enable_aht
+    In hot exhaust air, RH% alone reads misleadingly low; dew point is the
+    temperature-independent measure of how much moisture the air actually carries.
+    """
+    if rh <= 0:
+        return None
+    a, b = 17.625, 243.04
+    g = log(rh / 100.0) + (a * temp_c) / (b + temp_c)
+    return (b * g) / (a - g)
+
+
+class SensorController:
+    def __init__(self, SHT_SDA, SHT_SCL, MAX_SCK, MAX_CS, MAX_SO,
+                 enable_sht=True, enable_max=True):
+
+        self.__sht_enabled = enable_sht
         self.__max_enabled = enable_max
 
         self.__max = None
@@ -35,35 +48,28 @@ class SensorController:
             except Exception as e:
                 self.__max_error = _friendly_error(e)
 
-        # I2C(0) is only created when the AHT is enabled, so a faulty AHT bus
-        # (e.g. SDA stuck low) can be bypassed entirely in software.
+        # I2C(0) is only created when the humidity sensor is enabled, so a faulty
+        # bus can be bypassed entirely in software.
         self.__i2c = None
-        self.__aht = None
-        self.__aht_error = None
-        if enable_aht:
+        self.__sht = None
+        self.__sht_error = None
+        if enable_sht:
             try:
-                self.__i2c = I2C(0, sda=AHT_SDA, scl=AHT_SCL, freq=400000)
-                self.__aht = AHT20(self.__i2c)
+                self.__i2c = I2C(0, sda=SHT_SDA, scl=SHT_SCL, freq=100000)
+                self.__sht = SHT31(self.__i2c)
             except Exception as e:
-                self.__aht_error = _friendly_error(e)
+                self.__sht_error = _friendly_error(e)
 
-        self.__temperature = 0
-        self.__humidity = 0
+        self.__temperature = 0    # roast temperature (MAX6675 thermocouple)
+        self.__humidity = 0       # exhaust relative humidity % (SHT31)
+        self.__exhaust_temp = 0   # exhaust air temperature C (SHT31)
+        self.__dew_point = 0      # dew point C, derived from exhaust temp + RH
         self.__has_error = False
-        self.__aht_live_error = False
+        self.__sht_live_error = False
         self.__max_live_error = False
-        self.__aht_measurement_triggered = False
-
-        # Trigger first AHT20 measurement immediately
-        if self.__aht is not None:
-            try:
-                self.__aht._trigger_measurement()
-                self.__aht_measurement_triggered = True
-            except Exception:
-                pass
 
     def report(self):
-        """Per-device startup labels: (aht_label, aht_detail, max_label, max_detail).
+        """Per-device startup labels: (sht_label, sht_detail, max_label, max_detail).
 
         label is 'OK' | 'FAIL' | 'DISABLED'; detail carries the error string on FAIL.
         """
@@ -72,39 +78,29 @@ class SensorController:
                 return ("DISABLED", None)
             return ("OK", None) if obj is not None else ("FAIL", err)
 
-        a_lbl, a_det = lbl(self.__aht_enabled, self.__aht, self.__aht_error)
+        s_lbl, s_det = lbl(self.__sht_enabled, self.__sht, self.__sht_error)
         m_lbl, m_det = lbl(self.__max_enabled, self.__max, self.__max_error)
-        return (a_lbl, a_det, m_lbl, m_det)
+        return (s_lbl, s_det, m_lbl, m_det)
 
     def read_sensor_data(self):
         """
-        Read sensor data individually and return as tuple.
-        On failure, returns 0 for failed sensor (never stops).
+        Read sensor data individually. On failure, returns 0 for the failed
+        sensor (never stops).
         """
         error = False
 
-        if self.__aht is not None:
+        if self.__sht is not None:
             try:
-                if not self.__aht_measurement_triggered:
-                    self.__aht._trigger_measurement()
-                    self.__aht_measurement_triggered = True
-                else:
-                    # status property reads 6 bytes into _buf, including measurement data
-                    status = self.__aht.status
-                    if not (status & _AHT_STATUS_BUSY):
-                        # Compute humidity from buffer BEFORE triggering next measurement
-                        # (_trigger_measurement overwrites _buf[0:3])
-                        buf = self.__aht._buf
-                        raw = (buf[1] << 12) | (buf[2] << 4) | (buf[3] >> 4)
-                        self.__humidity = int((raw * 100) / 0x100000)
-                        # Trigger next measurement
-                        self.__aht._trigger_measurement()
-                    # If busy, keep cached self.__humidity
-                self.__aht_live_error = False
+                t, rh = self.__sht.measure()
+                self.__exhaust_temp = round(t, 1)
+                self.__humidity = int(rh)
+                dp = _dew_point(t, rh)
+                self.__dew_point = round(dp, 1) if dp is not None else 0
+                self.__sht_live_error = False
             except Exception:
                 self.__humidity = 0
-                self.__aht_measurement_triggered = False
-                self.__aht_live_error = True
+                self.__dew_point = 0
+                self.__sht_live_error = True
                 error = True
 
         if self.__max is not None:
@@ -122,16 +118,15 @@ class SensorController:
         return self.__has_error
 
     def health(self):
-        """Live per-sensor health as (aht_ok, max_ok).
+        """Live per-sensor health as (sht_ok, max_ok).
 
-        Reflects the *current* runtime state: an enabled sensor is ok only if it
-        initialized and its last read did not error. A disabled sensor counts as
-        ok (intentional, not a fault). Unlike report() (a fixed boot-time
-        snapshot), this recovers once a transient glitch clears.
+        An enabled sensor is ok only if it initialized and its last read did not
+        error. A disabled sensor counts as ok (intentional, not a fault). Unlike
+        report() (a fixed boot-time snapshot), this recovers once a glitch clears.
         """
-        aht_ok = (not self.__aht_enabled) or (self.__aht is not None and not self.__aht_live_error)
+        sht_ok = (not self.__sht_enabled) or (self.__sht is not None and not self.__sht_live_error)
         max_ok = (not self.__max_enabled) or (self.__max is not None and not self.__max_live_error)
-        return (aht_ok, max_ok)
+        return (sht_ok, max_ok)
 
     def get_temperature(self):
         return self.__temperature
@@ -141,6 +136,12 @@ class SensorController:
 
     def get_json(self):
         """
-        Get sensor data in json format
+        Get sensor data in json format. `temperature` is the roast temperature
+        (thermocouple); `exhaust_temp`/`humidity`/`dew_point` come from the SHT31.
         """
-        return {"temperature": self.__temperature, "humidity": self.__humidity}
+        return {
+            "temperature": self.__temperature,
+            "humidity": self.__humidity,
+            "exhaust_temp": self.__exhaust_temp,
+            "dew_point": self.__dew_point,
+        }
