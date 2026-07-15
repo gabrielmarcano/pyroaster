@@ -287,6 +287,7 @@ paths:
                     humidity: 55
                     exhaust_temp: 20.2
                     dew_point: 10.7
+                    abs_humidity: 9.5
                 time:
                   summary: time event
                   value:
@@ -353,6 +354,13 @@ components:
             relative humidity, dew point is temperature-independent, so it tracks
             the actual moisture the exhaust air carries during the roast.
           example: 10.7
+        abs_humidity:
+          type: number
+          description: >
+            Absolute humidity in g/m3, derived from exhaust_temp + humidity. The
+            true mass of water vapor per volume of air; comparable across roasts
+            and grains regardless of exhaust temperature. See HUMEDAD.md.
+          example: 9.5
 
     Time:
       type: object

@@ -1,4 +1,4 @@
-from math import log
+from math import log, exp
 from drivers.max6675 import MAX6675
 from drivers.sht31 import SHT31
 from machine import I2C
@@ -26,6 +26,18 @@ def _dew_point(temp_c, rh):
     a, b = 17.625, 243.04
     g = log(rh / 100.0) + (a * temp_c) / (b + temp_c)
     return (b * g) / (a - g)
+
+
+def _abs_humidity(temp_c, rh):
+    """Absolute humidity in g/m^3 from air temperature (C) and RH (%).
+
+    The actual mass of water vapor per volume of air. It varies only mildly with
+    temperature (warm air expands, lowering g/m^3), unlike relative humidity which
+    swings strongly; dew point is the strictly temperature-independent measure.
+    Both track real moisture far better than RH.
+    """
+    es = 6.112 * exp(17.67 * temp_c / (temp_c + 243.5))  # sat. vapor pressure, hPa
+    return 2.167 * rh * es / (temp_c + 273.15)
 
 
 class SensorController:
@@ -64,6 +76,7 @@ class SensorController:
         self.__humidity = 0       # exhaust relative humidity % (SHT31)
         self.__exhaust_temp = 0   # exhaust air temperature C (SHT31)
         self.__dew_point = 0      # dew point C, derived from exhaust temp + RH
+        self.__abs_humidity = 0   # absolute humidity g/m3, derived from temp + RH
         self.__has_error = False
         self.__sht_live_error = False
         self.__max_live_error = False
@@ -96,10 +109,12 @@ class SensorController:
                 self.__humidity = int(rh)
                 dp = _dew_point(t, rh)
                 self.__dew_point = round(dp, 1) if dp is not None else 0
+                self.__abs_humidity = round(_abs_humidity(t, rh), 1)
                 self.__sht_live_error = False
             except Exception:
                 self.__humidity = 0
                 self.__dew_point = 0
+                self.__abs_humidity = 0
                 self.__sht_live_error = True
                 error = True
 
@@ -144,4 +159,5 @@ class SensorController:
             "humidity": self.__humidity,
             "exhaust_temp": self.__exhaust_temp,
             "dew_point": self.__dew_point,
+            "abs_humidity": self.__abs_humidity,
         }
